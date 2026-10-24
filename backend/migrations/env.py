@@ -5,7 +5,7 @@ from sqlalchemy import create_engine, pool
 
 from app.core.config import DatabaseSettings
 from app.db import Base
-from app.models import User  # noqa: F401 -- register model metadata
+from app.models import User, Vehicle  # noqa: F401 -- register model metadata
 
 target_metadata = Base.metadata
 

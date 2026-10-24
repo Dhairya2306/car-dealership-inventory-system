@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import sessionmaker
 
-from app.api import auth, health
+from app.api import auth, health, vehicles
 from app.core.config import Settings
 from app.db import build_engine
 
@@ -42,4 +42,5 @@ def create_app(settings: Settings) -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(health.router)
+    app.include_router(vehicles.router)
     return app
