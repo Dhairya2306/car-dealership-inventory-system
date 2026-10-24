@@ -113,3 +113,54 @@ is verified.
 ```text
 I’ll check the scaffold and available runtimes, then implement the database and authentication foundation. I’ll test against a separate PostgreSQL database and leave vehicle APIs for a later step.
 ```
+
+## User — workspace and Git audit (2026-10-24)
+
+Actual request text, excluding IDE context:
+
+```text
+Continue the existing Car Dealership Inventory System
+project. I have already given you the initial project
+setup prompt and the authentication/database prompt.
+
+Do not restart the project, regenerate the entire
+application, or overwrite working files.
+
+First inspect the actual workspace and report:
+1. Which project files exist.
+2. Whether PostgreSQL configuration, SQLAlchemy
+   models, Alembic migrations, registration, login,
+   JWT authentication and pytest tests are implemented.
+3. Which tests and setup commands you actually ran,
+   with their results.
+4. Incomplete features and errors from the first phases.
+
+Then inspect Git status, commits, branches, .gitignore
+and configured remotes.
+
+If Git is not initialized, initialize it. If there is
+no initial commit, prepare an appropriate first commit
+after checking the files.
+
+Never commit secrets, real .env files, credentials,
+virtual environments, node_modules or build outputs.
+
+I also want to push this project to GitHub. Check
+whether a remote is already configured. If no remote
+exists, explain how to create a public repository and
+ask me for its URL.
+
+Do not change an existing remote, publish code, or
+push without showing me the target and getting my
+explicit approval.
+
+If the files are ready, make a sensible local Git
+commit using the required AI co-author trailer with
+a valid identity.
+
+Do not claim tests or Git operations succeeded unless
+actually verified.
+
+After the audit, tell me the exact next step.
+Do not implement vehicle APIs or the frontend yet.
+```

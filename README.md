@@ -10,6 +10,9 @@ APIs and frontend workflows remain unimplemented; the UI still has a setup scree
 See [the plan and requirements checklist](docs/IMPLEMENTATION_PLAN.md) and
 [actual verification results](docs/TEST_REPORT.md).
 
+The [workspace and Git audit](docs/WORKSPACE_AUDIT.md) lists the existing files, verified features,
+remaining work and steps for creating a GitHub repository before an explicitly approved push.
+
 ## Workspace layout
 
 ```text

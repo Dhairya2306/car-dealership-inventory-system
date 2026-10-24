@@ -4,7 +4,8 @@ Date: 2026-10-24 (Asia/Kolkata). Current scope: PostgreSQL and authentication fo
 
 ## Current result
 
-**41 tests passed**, 1 upstream dependency warning, in 2.21 seconds after refactoring.
+**41 tests passed**, 1 upstream dependency warning, in 2.15 seconds in the latest workspace audit.
+The preceding post-refactor run passed in 2.21 seconds. See WORKSPACE_AUDIT.md for the new audit.
 The complete isolated runner exited 0, including migration checks and database shutdown.
 Ruff lint and format checks passed. No vehicle APIs, production data, Docker execution,
 frontend execution or deployment were involved.
@@ -28,6 +29,8 @@ temporary cluster paths vary for every invocation.
 | `backend/.venv/bin/python -m ruff check backend scripts` | All checks passed after fixes |
 | `backend/.venv/bin/python -m ruff format --check backend scripts` | 25 files already formatted after refactor |
 | Same isolated runner after extracting account services | Refactor: 41 passed, 1 warning in 2.21s; runner exit 0 |
+| Same isolated runner during the subsequent workspace/Git audit | 41 passed, 1 warning in 2.15s; migration checks and cluster shutdown passed; exit 0 |
+| `.tools/uv/bin/uv pip check --python backend/.venv/bin/python` during the audit | 44 installed packages checked; all compatible |
 
 The runner executed these migration commands with `DATABASE_URL` set to its newly created,
 private PostgreSQL test database (not the development configuration):
