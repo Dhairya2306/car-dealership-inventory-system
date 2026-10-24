@@ -164,3 +164,58 @@ actually verified.
 After the audit, tell me the exact next step.
 Do not implement vehicle APIs or the frontend yet.
 ```
+
+## User — vehicle backend request (2026-10-24)
+
+Verbatim excerpts from the actual request, recording scope and permissions; this is not the full
+message or a full session export.
+
+```text
+Continue developing my existing Car Dealership Inventory System in this workspace. The project setup and authentication/database implementation are complete, and the code has been pushed to GitHub. Preserve the existing code, Git history, authentication system and working tests. Do not restart the project.
+
+FIRST: inspect the existing models, routers, schemas, database session, Alembic migrations, authentication dependencies and tests. Identify the current architecture and reuse it.
+
+TASK: implement the vehicle inventory backend.
+```
+
+```text
+Required endpoints:
+1. POST /api/vehicles: authenticated user adds a vehicle.
+2. GET /api/vehicles: authenticated user views vehicles, with pagination.
+3. GET /api/vehicles/search: search by make, model, category, minimum price and maximum price.
+4. PUT /api/vehicles/{id}: authenticated user updates vehicle details.
+5. DELETE /api/vehicles/{id}: admin only.
+6. POST /api/vehicles/{id}/purchase: authenticated user purchases one unit and stock decreases by one.
+7. POST /api/vehicles/{id}/restock: admin only, increasing stock by a validated positive quantity.
+```
+
+```text
+WORKFLOW:
+1. Implement the smallest complete vertical slice first.
+2. Run the relevant tests and database migration.
+3. Fix failures and inspect the final diff.
+4. Report the exact commands run and actual test results.
+5. Commit the working milestone with a descriptive Git message and the required Codex co-author trailer, if all checks pass.
+6. Do not push to GitHub automatically. Tell me when the local milestone is complete so I can review it before the next step.
+```
+
+## User — final vehicle verification request (2026-10-24)
+
+Verbatim excerpts from the follow-up request received while completing the same milestone:
+
+```text
+Continue the Car Dealership Inventory System from the current repository state.
+
+**Important: Do not reset, discard, overwrite, or revert any existing changes. Do not push to GitHub yet. Preserve all existing commits and uncommitted work.**
+```
+
+```text
+- Ensure purchases use atomic stock decrements so concurrent requests cannot oversell inventory.
+- Ensure concurrent purchases and restocking do not cause lost stock updates.
+- Verify migration upgrade/downgrade behavior and confirm existing user records remain intact.
+- Run the complete backend test suite and any relevant migration or concurrency tests. Fix failures rather than merely reporting them.
+```
+
+```text
+**Work incrementally. If a command fails or the database is unavailable, investigate the cause and report it honestly. Do not claim tests passed unless you actually ran them.**
+```

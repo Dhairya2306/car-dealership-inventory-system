@@ -12,7 +12,9 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from uuid import uuid4
 
+from app.core.security import hash_password
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
 
@@ -94,17 +96,57 @@ def main():
                 JWT_ALGORITHM="HS256",
             )
             alembic = [sys.executable, "-m", "alembic", "-c", "backend/alembic.ini"]
-            run([*alembic, "upgrade", "head"], env=env)
-            run([*alembic, "current"], env=env)
-            run([*alembic, "check"], env=env)
+            run([*alembic, "upgrade", "0001_create_users"], env=env)
             engine = create_engine(url)
             try:
+                sentinel_id = uuid4()
+                lookup_user = text("SELECT * FROM users WHERE id = :id")
                 with engine.begin() as connection:
-                    assert connection.scalar(text("SELECT count(*) FROM users")) == 0
+                    connection.execute(
+                        text(
+                            "INSERT INTO users (id, email, password_hash) VALUES (:id, :email, :hash)"
+                        ),
+                        {
+                            "id": sentinel_id,
+                            "email": "migration-check@example.com",
+                            "hash": hash_password(secrets.token_hex(32)),
+                        },
+                    )
+                    original_user = connection.execute(
+                        lookup_user, {"id": sentinel_id}
+                    ).one()
+                run([*alembic, "upgrade", "head"], env=env)
+                run([*alembic, "current"], env=env)
+                run([*alembic, "check"], env=env)
+                with engine.begin() as connection:
+                    assert (
+                        connection.execute(lookup_user, {"id": sentinel_id}).one()
+                        == original_user
+                    )
+                    assert connection.scalar(text("SELECT count(*) FROM vehicles")) == 0
+                run([*alembic, "downgrade", "0001_create_users"], env=env)
+                with engine.begin() as connection:
+                    assert (
+                        connection.execute(lookup_user, {"id": sentinel_id}).one()
+                        == original_user
+                    )
+                    assert (
+                        connection.scalar(text("SELECT to_regclass('public.vehicles')"))
+                        is None
+                    )
+                print(
+                    "PASS: existing user preserved across vehicle upgrade and downgrade",
+                    flush=True,
+                )
+                run([*alembic, "upgrade", "head"], env=env)
                 run([*alembic, "downgrade", "base"], env=env)
                 with engine.begin() as connection:
                     assert (
                         connection.scalar(text("SELECT to_regclass('public.users')"))
+                        is None
+                    )
+                    assert (
+                        connection.scalar(text("SELECT to_regclass('public.vehicles')"))
                         is None
                     )
                 run([*alembic, "upgrade", "head"], env=env)

@@ -4,9 +4,9 @@ A two-day MVP project for authenticated vehicle inventory, customer purchases an
 management. Stack: FastAPI, SQLAlchemy 2, Pydantic, Alembic, PostgreSQL, JWT/Argon2, React,
 TypeScript, Vite and Tailwind CSS.
 
-**Current status: PostgreSQL and authentication foundation implemented and tested.** Registration,
-login, JWT validation, reusable role dependencies and database readiness are available. Inventory
-APIs and frontend workflows remain unimplemented; the UI still has a setup screen.
+**Current status: authentication and vehicle inventory backend implemented and tested.** Registration,
+login, JWT/role checks, database readiness, vehicle CRUD/search, pagination and atomic stock changes
+are available. Frontend workflows remain unimplemented; the UI still has a setup screen.
 See [the plan and requirements checklist](docs/IMPLEMENTATION_PLAN.md) and
 [actual verification results](docs/TEST_REPORT.md).
 
@@ -17,8 +17,8 @@ remaining work and steps for creating a GitHub repository before an explicitly a
 
 ```text
 backend/
-  app/                  Routes, settings/security, User model, schemas and account services
-  migrations/           Alembic environment and initial users migration
+  app/                  Routes, settings/security, User/Vehicle models, schemas and services
+  migrations/           Alembic environment, users migration and additive vehicles migration
   tests/                pytest/TestClient tests against isolated PostgreSQL
   pyproject.toml        Backend runtime and development dependencies
   uv.lock               Resolved backend dependency versions and package hashes
@@ -89,7 +89,8 @@ python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 On another machine with uv installed, replace `.tools/uv/bin/uv` with `uv`; it can obtain Python 3.12.
 Both the API and Alembic load the root `.env`, with exported environment variables taking precedence.
-The migration creates the `users` table and its unique email, normalization and role constraints.
+The migrations create `users` and `vehicles` with their validation constraints. Upgrading an
+existing `0001_create_users` database to `0002_create_vehicles` preserves its user records.
 Alembic needs only `DATABASE_URL`; starting the API also requires `JWT_SECRET_KEY`.
 
 The readiness endpoint is `http://127.0.0.1:8000/api/health`; interactive API docs are at `/docs`.
@@ -109,11 +110,69 @@ be 12–128 characters and are stored only as Argon2id hashes. Registration alwa
 unknown fields including `role` and `is_admin` return 422. Duplicate email returns 409. Incorrect
 login credentials return a generic 401 with a Bearer challenge. Validation errors omit raw input.
 
-Future protected routes can depend on `CurrentUser` or `AdminUser` from
+Protected inventory routes depend on `CurrentUser` or `AdminUser` from
 `backend/app/api/dependencies.py`. These validate signature, expiry, issuer, audience and required
 claims, then load the user and role from PostgreSQL. Missing/invalid tokens return 401; insufficient
 role returns 403. Admin provisioning is deferred; there are no default admin credentials or public
 role-changing endpoints. Authorization tests use test-only routes, absent from the real application.
+
+## Vehicle API
+
+Every vehicle endpoint requires `Authorization: Bearer <access_token>`. Per the updated inventory
+requirements, regular authenticated users can create and update vehicles. Delete and restock
+require an admin role, enforced by the backend.
+
+| Endpoint | Access | Success |
+| --- | --- | --- |
+| `POST /api/vehicles` | Authenticated | 201, created vehicle |
+| `GET /api/vehicles` | Authenticated | 200, paginated vehicles |
+| `GET /api/vehicles/search` | Authenticated | 200, filtered paginated vehicles |
+| `PUT /api/vehicles/{id}` | Authenticated | 200, updated vehicle details |
+| `DELETE /api/vehicles/{id}` | Admin | 204, empty response |
+| `POST /api/vehicles/{id}/purchase` | Authenticated | 200, vehicle after buying one unit |
+| `POST /api/vehicles/{id}/restock` | Admin | 200, vehicle after stock increment |
+
+Create body example (sample inventory data, not a seeded record):
+
+```json
+{
+  "make": "Toyota",
+  "model": "Corolla",
+  "category": "Sedan",
+  "price": "24500.25",
+  "quantity": 2
+}
+```
+
+Responses include a generated UUID, these fields, and `created_at` / `updated_at` timestamps.
+Prices use PostgreSQL `NUMERIC(12,2)` and Python Decimal; JSON responses encode them as strings.
+Prices must be positive, finite, at most `9999999999.99`, with no more than two fractional digits.
+Stock must be a JSON integer from 0 to 2147483647; booleans, numeric strings and fractional stock
+are rejected. Make/model/category are trimmed, nonempty strings limited to 100/100/50 characters.
+Unknown fields are rejected.
+
+`PUT` requires all four descriptive fields (`make`, `model`, `category`, `price`). It rejects
+`quantity`: after creation, stock changes only through purchase/restock. This prevents a stale
+edit form from restoring purchased stock and prevents users bypassing admin restock authorization.
+Purchase takes no body and buys exactly one unit. Restock takes `{"quantity": 3}` and requires a
+positive integer increment. Both operations use atomic SQL updates; purchases condition the
+decrement on positive stock, and restocks check for integer overflow. A database check also
+forbids negative stock. Successful details and stock updates refresh `updated_at`.
+
+List and search accept `limit` (default 20, range 1–100) and `offset` (default 0, range
+0–2147483647). Responses have `items`, `total`, `limit`, and `offset`; results sort by creation
+timestamp then UUID. An empty or beyond-end page has an empty `items` list. Counts/pages reflect
+current reads and can change as other users modify inventory.
+
+Search accepts any combination of `make`, `model`, `category`, `min_price`, and `max_price`.
+Make/model match case-insensitive substrings, with `%` and `_` treated literally. Category is an
+exact case-insensitive match. Price bounds are inclusive and nonnegative; minimum above maximum
+is rejected. For example: `/api/vehicles/search?make=toy&category=sedan&max_price=30000&limit=20`.
+The static `/search` route is declared before dynamic vehicle-ID routes.
+
+Missing vehicles return 404; out-of-stock purchases and stock overflow return 409. Missing or
+invalid tokens return 401, insufficient role 403, and invalid bodies/queries/UUIDs 422. Error
+responses use a `detail` field; validation errors use a list of field errors within that field.
 
 Each request owns a SQLAlchemy session. Account services commit successful writes and roll back
 failed writes; the dependency closes the session and rolls back outstanding work. The initial
@@ -141,9 +200,11 @@ backend/.venv/bin/python -m ruff check backend scripts
 backend/.venv/bin/python -m ruff format --check backend scripts
 ```
 
-The runner creates a new PostgreSQL cluster under a private temporary directory, listens only on
-its Unix socket, runs upgrade/current/check/downgrade/upgrade, then executes pytest and stops the
-server. It never connects to the development database or consumes `.env` credentials. Trust
+The runner creates a new PostgreSQL cluster under a private temporary directory and listens only
+on its Unix socket. It migrates to users, inserts a temporary account, then verifies that the full
+user row survives vehicle upgrade and downgrade. It also checks schema drift and the complete
+migration round trip, runs pytest, and stops the server. It never connects to the development
+database or consumes `.env` credentials. Trust
 authentication is limited to this private temporary test cluster. The locally compiled PostgreSQL
 build is for testing and does not include TLS; use the Compose image or your managed server for
 normal development/deployment.
@@ -154,10 +215,12 @@ in `_test` and run `backend/.venv/bin/python -m pytest backend/tests -q`. Tests 
 it, rolls back individual tests and drops only that schema. The test database user must be allowed
 to create schemas. Do not supply a production database.
 
-Current result: **41 passed**, with one upstream Starlette warning about the httpx TestClient
-adapter. Migration checks and Ruff passed. See [the test report](docs/TEST_REPORT.md) for commands,
-the initial failing tests and subsequent fixes. Frontend tests/build, vehicle behavior and browser
-review remain pending. No vehicle routes were added in this milestone.
+Current result: **118 passed**, including all 41 existing authentication/foundation tests and
+77 inventory cases. Concurrent tests use real independent PostgreSQL transactions: eight buyers
+compete for one or three units; parallel restocks preserve every increment; edits during purchase
+do not restore stock; mixed purchases/restocks preserve totals. Migration checks and Ruff passed.
+One upstream Starlette warning about the httpx TestClient adapter remains. See [the test report](docs/TEST_REPORT.md)
+for exact commands and results. Frontend tests/build and browser review remain pending.
 
 ## Screenshots
 
@@ -173,14 +236,20 @@ are claimed by this scaffold.
 - **Work contributed:** the initial scaffold and plan, followed by PostgreSQL session management,
   the users migration/model, authentication schemas and routes, Argon2/JWT utilities, reusable
   authorization dependencies, CORS, isolated integration tests and their temporary database runner.
+  The vehicle milestone adds its model/migration, schemas, seven endpoints, stock services,
+  PostgreSQL concurrency tests, migration preservation checks and frontend API documentation.
 - **Engineering choices:** preserve the original virtual environment, use a separate Python 3.12
   environment, keep secrets out of Git, plan backend role enforcement and atomic stock changes.
-  Add/update admin authorization is explicitly recorded as an assumption in the plan.
+  The user's later specification explicitly allows authenticated users to add/update vehicle
+  details; it supersedes the original admin-only assumption. Stock edits use dedicated endpoints.
 - **Verification and limits:** six authentication tests first failed with 404. Implementation and
   expanded tests initially produced 38 passes and three overly broad test assertions; those assertions
   were corrected. The next run passed all 41 tests. Account logic was then extracted from route
-  handlers into a service module and the full suite rerun. All database work used temporary test
-  data. PostgreSQL migrations and metadata drift checks ran; Docker and frontend checks remain pending.
+  handlers into a service module and the full suite rerun. Vehicle development first recorded four
+  expected failures, then 45 passes for create/list; five further behavior checks failed before
+  implementing the remaining endpoints. The expanded backend now passes 118 cases. All database
+  work used temporary test data. Migration preservation and metadata drift checks ran; Docker and
+  frontend checks remain pending. These runs do not claim production load testing.
 - **Human review:** review authorization assumptions, install prerequisites, then inspect real test
   results and the UI at each milestone. No human review or acceptance is claimed yet.
 - **Ongoing record:** append actual future prompt/response excerpts or genuine public links;

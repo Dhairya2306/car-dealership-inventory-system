@@ -1,7 +1,7 @@
 # Implementation plan and requirements checklist
 
-Scope: a two-day local MVP. Scaffolding and the PostgreSQL/authentication foundation are complete.
-The latest foundation run passed 41 tests; see TEST_REPORT.md for actual results and limitations.
+Scope: a two-day local MVP. Scaffolding, authentication and the vehicle inventory backend are complete.
+The backend suite passes 118 tests; see TEST_REPORT.md for actual results and limitations.
 
 ## Day 1: backend (approximately 8 hours)
 
@@ -34,23 +34,24 @@ The latest foundation run passed 41 tests; see TEST_REPORT.md for actual results
 - [x] User registration and login; unique normalized email; Argon2 hashes only.
 - [x] JWT validation, expiry, issuer/audience checks and reusable current-user/admin dependencies.
 - [x] Public registration cannot grant admin; backend role enforcement tested with test-only routes.
-- [ ] Apply dependencies to inventory routes; add local admin provisioning.
-- [ ] Vehicle: generated unique ID, make, model, category, decimal price, integer stock quantity.
-- [ ] `POST /api/vehicles`: add vehicle (planned admin-only).
-- [ ] `GET /api/vehicles`: list vehicles (authenticated).
-- [ ] `GET /api/vehicles/search`: combine make/model/category/minimum/maximum price filters.
-- [ ] `PUT /api/vehicles/{id}`: update vehicle (planned admin-only).
-- [ ] `DELETE /api/vehicles/{id}`: delete vehicle (admin-only).
-- [ ] `POST /api/vehicles/{id}/purchase`: authenticated purchase with safe stock decrement.
-- [ ] `POST /api/vehicles/{id}/restock`: admin-only positive stock increment.
-- [ ] Input validation, missing resources, forbidden/unauthenticated requests, conflict responses.
+- [x] Apply authentication/admin dependencies to inventory routes.
+- [ ] Add local admin provisioning.
+- [x] Vehicle: generated unique ID, make, model, category, decimal price, integer stock quantity.
+- [x] `POST /api/vehicles`: authenticated user adds a vehicle (updated user specification).
+- [x] `GET /api/vehicles`: list vehicles with pagination (authenticated).
+- [x] `GET /api/vehicles/search`: combine make/model/category/minimum/maximum price filters.
+- [x] `PUT /api/vehicles/{id}`: authenticated user updates descriptive fields and price.
+- [x] `DELETE /api/vehicles/{id}`: delete vehicle (admin-only).
+- [x] `POST /api/vehicles/{id}/purchase`: authenticated purchase with safe stock decrement.
+- [x] `POST /api/vehicles/{id}/restock`: admin-only positive stock increment.
+- [x] Input validation, missing resources, forbidden/unauthenticated requests, conflict responses.
 - [ ] React registration/login and authenticated inventory dashboard.
 - [ ] Search/filter controls and purchase buttons disabled at zero stock.
 - [ ] Admin add/update/delete/restock controls; responsive polished UI.
-- [ ] pytest + FastAPI TestClient, including PostgreSQL concurrent purchase integration tests.
+- [x] pytest + FastAPI TestClient, including PostgreSQL concurrent purchase integration tests.
 - [ ] Vitest + React Testing Library for forms, permissions, zero stock and error feedback.
 - [x] Record Red-Green-Refactor evidence for the authentication/authorization foundation.
-- [ ] Record stock-operation Red-Green-Refactor evidence when implemented.
+- [x] Record vehicle/stock behavior failures before implementation and passing integration results.
 - [x] Meaningful local scaffold, failing-test and implementation commits with Codex co-author trailers.
 - [x] Initial README, detailed My AI Usage section, real prompt excerpt in root PROMPTS.md.
 - [ ] Actual screenshots and final tested setup instructions.
@@ -63,14 +64,14 @@ The latest foundation run passed 41 tests; see TEST_REPORT.md for actual results
   PostgreSQL in development and integration tests, with a separate disposable test database.
 - Use database `NUMERIC(12,2)` / Python Decimal for price; reject negative price/stock and
   invalid price ranges; trim and constrain text fields. Do not use floating point for money.
-- Admin-only add/update is an assumption based on the requested admin UI. All inventory access
-  requires login. Registration rejects role fields and always creates a regular user.
+- The later user specification explicitly allows authenticated users to add/update vehicle details;
+  delete and restock remain admin-only. Registration rejects role fields and creates regular users.
 - Purchase initially buys one unit per request. Restock accepts a positive integer quantity.
   Use `UPDATE ... SET quantity = quantity - 1 WHERE id = :id AND quantity > 0 RETURNING ...`
   inside a transaction. Check affected rows; return 404 for missing vehicles and 409 for no stock.
   Add a database CHECK constraint to enforce nonnegative stock. Restock also uses an atomic update.
-- Ensure admin quantity edits cannot silently overwrite concurrent purchase results: use an
-  explicit locking/version strategy or separate quantity changes from descriptive edits.
+- Quantity is excluded from PUT. Atomic purchase/restock operations are separate from descriptive
+  edits, and concurrent tests verify that edits cannot restore purchased stock.
 - Register `/search` before `/{id}`. Use case-insensitive partial make/model search, category
   filtering and inclusive price bounds. Define pagination and deterministic ordering.
 - Return 201 on create, 200 on successful reads/updates/stock operations, 204 on delete,

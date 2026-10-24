@@ -1,8 +1,102 @@
 # Verification report
 
-Date: 2026-10-24 (Asia/Kolkata). Current scope: PostgreSQL and authentication foundation.
+Date: 2026-10-24 (Asia/Kolkata). Current scope: completed vehicle inventory backend.
 
-## Current result
+## Vehicle milestone: latest verified result
+
+**118 passed, 1 warning in 9.24s** in the final rerun requested by the user. The full temporary
+PostgreSQL runner exited 0 and shut down its cluster. This includes all 41 existing authentication
+and foundation tests, 72 vehicle API/validation cases, and 5 concurrent-stock cases. The previous
+complete run also passed 118 cases in 9.56s. No existing tests were removed or weakened.
+
+### Commands actually run
+
+```sh
+backend/.venv/bin/python scripts/test_backend.py --pg-bin .tools/postgres/bin -q --tb=short
+backend/.venv/bin/python -m ruff check backend scripts
+backend/.venv/bin/python -m ruff format --check backend scripts
+.tools/uv/bin/uv pip check --python backend/.venv/bin/python
+git diff --check
+```
+
+Results: 118 tests passed; Ruff reported `All checks passed!`; 32 Python files were already
+formatted; all 44 installed packages were compatible; Git's whitespace check returned no errors.
+The sole warning is the unchanged upstream Starlette httpx TestClient deprecation, not a test failure.
+
+### Incremental implementation and actual failing tests
+
+| Command | Result |
+| --- | --- |
+| `backend/.venv/bin/python scripts/test_backend.py --pg-bin .tools/postgres/bin -q -k test_vehicle` before vehicle routes existed | 4 failed, 41 deselected, 1 warning in 0.26s; create/list returned 404 |
+| `backend/.venv/bin/python scripts/test_backend.py --pg-bin .tools/postgres/bin -q` after create/list slice | 45 passed, 1 warning in 2.43s; migration checks passed |
+| `backend/.venv/bin/python scripts/test_backend.py --pg-bin .tools/postgres/bin -q -k 'test_vehicle_purchase_one or test_vehicle_admin_restock or test_vehicle_search_combines or test_vehicle_admin_can_delete or test_vehicle_update_details' --tb=short` before remaining endpoints | 5 failed, 107 deselected, 1 warning in 0.55s; missing routes produced 404 or missing response fields |
+| `backend/.venv/bin/python scripts/test_backend.py --pg-bin .tools/postgres/bin -q --tb=short` after all endpoints | 112 passed, 1 warning in 8.57s |
+| Same command after adding concurrent requests, offset bound and user-preservation checks | 118 passed, 1 warning in 9.56s |
+| Same command after the user's final review/verification request | 118 passed, 1 warning in 9.24s |
+
+The first working slice was committed as `31f56a3`. The remaining implementation and verification
+work was reviewed in place, including the untracked concurrency test file, and preserved for the
+completed milestone commit. One Ruff import-order error in the expanded runner was fixed before
+the final successful checks. There were no unexpected application test failures in the green runs.
+
+### Migration verification and existing users
+
+The runner executed the following sequence using only its newly created PostgreSQL database:
+
+```sh
+backend/.venv/bin/python -m alembic -c backend/alembic.ini upgrade 0001_create_users
+# Runner inserts a temporary user with a randomly generated, Argon2-hashed password.
+backend/.venv/bin/python -m alembic -c backend/alembic.ini upgrade head
+backend/.venv/bin/python -m alembic -c backend/alembic.ini current
+backend/.venv/bin/python -m alembic -c backend/alembic.ini check
+backend/.venv/bin/python -m alembic -c backend/alembic.ini downgrade 0001_create_users
+backend/.venv/bin/python -m alembic -c backend/alembic.ini upgrade head
+backend/.venv/bin/python -m alembic -c backend/alembic.ini downgrade base
+backend/.venv/bin/python -m alembic -c backend/alembic.ini upgrade head
+backend/.venv/bin/python -m pytest backend/tests -q --tb=short
+```
+
+Every command exited 0. `current` printed `0002_create_vehicles (head)` and `check` printed
+`No new upgrade operations detected.` The runner compared the entire pre-existing user row,
+including UUID, email, hash, role and timestamps, before/after the vehicle upgrade and downgrade:
+`PASS: existing user preserved across vehicle upgrade and downgrade`. It also confirmed that
+the vehicle table was created empty, removed by vehicle downgrade, and both tables were removed
+by the full test-only downgrade before being recreated. No persistent or production data was touched.
+
+### Coverage and code review
+
+- All seven inventory endpoints require JWT authentication. Create/update/purchase are available
+  to regular users; delete/restock require admin. Existing expired/invalid JWT and role tests pass.
+- Search combines case-insensitive make/model substrings, exact case-insensitive category and
+  inclusive Decimal price bounds. Wildcards are escaped, pagination is bounded and static search
+  is registered before dynamic IDs. Empty pages and invalid ranges are covered.
+- Positive finite `NUMERIC(12,2)` prices, trimmed required fields, strict integer stock, overflow,
+  missing vehicles, invalid updates and database CHECK constraints are exercised.
+- Eight simultaneous buyers compete for one unit and then three units: exactly 1 or 3 purchases
+  succeed, the remaining requests return 409, and final stock is zero.
+- Four simultaneous restocks add 1, 2, 3 and 4 to initial stock 1; final stock is 11.
+- Concurrent purchase and details edit both succeed; final stock remains zero and the edited make
+  is preserved. PUT never accepts or writes quantity.
+- Four simultaneous purchases and four increments of 2 from stock 10 all succeed; final stock is 14.
+- Concurrent tests use real request sessions and independent PostgreSQL transactions, with a thread
+  barrier to launch competing requests. They do not override the authentication/session dependencies.
+- Writes use parameterized SQLAlchemy statements. Purchases use a conditional decrement and restocks
+  use bounded atomic addition; both return the updated row. Not-found/conflict paths roll back,
+  successful writes commit, and request sessions close through the existing dependency.
+
+### Remaining work and limits
+
+The requested inventory backend is ready for frontend integration. Admin account provisioning,
+persistent local development setup, Docker verification and frontend work remain separate tasks.
+No frontend files were changed or frontend tests run. The isolated database tests verify this
+milestone, not production performance. The upstream TestClient warning remains. Nothing from this
+milestone was pushed to GitHub; local commits await user review.
+
+## Historical authentication foundation report
+
+The following results describe the earlier authentication milestone, before vehicle development.
+
+### Authentication result at that time
 
 **41 tests passed**, 1 upstream dependency warning, in 2.15 seconds in the latest workspace audit.
 The preceding post-refactor run passed in 2.21 seconds. See WORKSPACE_AUDIT.md for the new audit.
