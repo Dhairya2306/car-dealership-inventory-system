@@ -28,6 +28,12 @@ class Credentials(BaseModel):
 
 class RegisterRequest(Credentials):
     password: SecretStr = Field(min_length=12, max_length=128)
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def trim_name(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
 
 
 class LoginRequest(Credentials):
@@ -39,6 +45,7 @@ class UserResponse(BaseModel):
 
     id: UUID
     email: EmailStr
+    name: str | None
     role: Role
     created_at: datetime
     updated_at: datetime

@@ -18,3 +18,5 @@ coverage/
 .idea/
 .tools/
 *.log
+playwright-report/
+test-results/

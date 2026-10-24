@@ -219,3 +219,119 @@ Continue the Car Dealership Inventory System from the current repository state.
 ```text
 **Work incrementally. If a command fails or the database is unavailable, investigate the cause and report it honestly. Do not claim tests passed unless you actually ran them.**
 ```
+
+
+## Frontend milestone — actual user prompt, 2026-10-24
+
+The following is the verbatim text supplied in the user attachment `Pasted text.txt`.
+This is a user-message excerpt, not a fabricated complete transcript or public chat link.
+
+```text
+Continue the existing Car Dealership Inventory System project. The backend milestone is committed locally as `a03bbb4`, with 118 tests passing. The working tree was clean, and nothing was pushed to GitHub.
+
+**Goal: Build the complete React frontend and integrate it with the existing FastAPI backend.**
+
+Important rules:
+- Inspect the existing repository, README, API routes, schemas, authentication logic and frontend before making changes.
+- Reuse the current structure and dependencies where possible. Do not recreate the project or overwrite working backend code.
+- Do not reset, discard or revert existing commits or user changes.
+- Do not push to GitHub.
+- Follow the assignment requirements: React, TypeScript, HTML/CSS and Tailwind CSS.
+
+### 1. Set up the frontend
+Use the existing frontend scaffold if available. Implement React with TypeScript, Vite and Tailwind CSS. Keep the code modular, readable and suitable for a student project that I must explain in an interview.
+
+### 2. Authentication
+Create:
+- Registration page with name, email and password.
+- Login page with email and password.
+- Form validation and clear error messages.
+- JWT-based authentication using the existing backend endpoints.
+- Protected routes for authenticated users.
+- Logout functionality.
+- Persistent login across page refreshes, using an appropriate storage approach and handling expired or invalid tokens safely.
+
+Use the actual backend request and response formats. Do not guess API fields; inspect the implementation first.
+
+### 3. Inventory dashboard
+Build a clean, professional car dealership dashboard that includes:
+- Navigation bar and logout button.
+- Inventory table or responsive car cards.
+- Make, model, category, price and available quantity.
+- Loading indicators, empty states and API error messages.
+- Search by make, model and category.
+- Minimum and maximum price filters.
+- Pagination that works with the existing backend.
+- A refresh mechanism after inventory changes.
+
+### 4. Purchase functionality
+- Let authenticated users purchase available vehicles.
+- Allow the user to select a purchase quantity if supported by the backend; otherwise follow the existing API contract.
+- Disable purchases when stock is zero.
+- Display success and failure messages.
+- Refresh the inventory after a successful purchase.
+- Handle insufficient stock and concurrent purchase failures gracefully.
+
+### 5. Vehicle management
+Implement forms and UI for creating and updating vehicle details, plus deletion and restocking controls.
+
+Respect the existing backend permissions:
+- Authenticated users can create and update vehicle details.
+- Only admins can delete vehicles and restock inventory.
+- Do not rely on hiding buttons alone for security. The backend remains authoritative.
+- Inspect how admin roles are represented before implementing the UI.
+
+Include suitable confirmation dialogs for destructive actions and validation for price and quantity fields.
+
+### 6. UI and design
+Use Tailwind CSS to create a polished, modern dealership interface:
+- Responsive layout for desktop and mobile.
+- Consistent typography, spacing and buttons.
+- Clear stock status indicators.
+- Professional forms, tables/cards and navigation.
+- Accessible labels and sensible keyboard navigation.
+
+Avoid unnecessary animations or overcomplicated features. Prioritize a working, reliable application.
+
+### 7. Frontend tests
+Use the testing tools already configured in the project, or add Vitest and React Testing Library if necessary.
+
+Test:
+- Login and registration validation.
+- API client authentication headers and error handling.
+- Inventory rendering, searching and pagination.
+- Purchase behavior when stock is zero.
+- Admin-only UI controls.
+- Loading, empty and error states.
+
+Run the frontend tests, lint and build. Fix failures rather than merely documenting them.
+
+### 8. Integration verification
+- Start the backend and frontend using the project's existing setup.
+- Verify that the frontend communicates with the actual API.
+- Configure the API base URL through environment variables.
+- Check CORS configuration and document the correct development commands.
+- Verify the main registration, login, inventory and purchase workflows.
+- Do not claim browser-based verification unless you actually perform it.
+- Do not put database credentials, JWT secrets or other secrets in frontend code.
+
+### 9. Documentation and Git
+Update the README with frontend setup, environment variables, backend/frontend startup commands, test commands and screenshots instructions. Preserve the existing AI usage documentation and `PROMPTS.md`. Do not fabricate screenshots or test results.
+
+After successful verification, commit the frontend milestone locally with a meaningful commit message and this trailer:
+
+`Co-authored-by: Codex <noreply@openai.com>`
+
+Do not push.
+
+### Final report
+Tell me:
+1. Which frontend features are complete.
+2. Which tests and build commands actually passed.
+3. How to run the backend and frontend on my Mac.
+4. Any remaining integration issues.
+5. The new commit hash, if committed.
+6. What I should do next.
+
+Work incrementally, reuse the existing implementation and investigate failures instead of bypassing them.
+```

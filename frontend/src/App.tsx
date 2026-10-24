@@ -1,14 +1,46 @@
+import { Navigate, Route, Routes } from "react-router-dom";
+import { useAuth } from "./auth/AuthProvider";
+import { AuthPage } from "./pages/AuthPage";
+import { InventoryPage } from "./pages/InventoryPage";
+import { ErrorMessage, Loading } from "./components/Feedback";
+
 export default function App() {
+  const { user, loading, error, retry, logout } = useAuth();
+  if (loading)
+    return (
+      <main className="grid min-h-screen place-items-center bg-stone-50">
+        <Loading label="Checking your session…" />
+      </main>
+    );
+  if (error)
+    return (
+      <main className="mx-auto max-w-md space-y-5 px-6 py-24">
+        <h1 className="text-2xl font-semibold">
+          Unable to restore your session
+        </h1>
+        <ErrorMessage message={error} />
+        <div className="flex gap-3">
+          <button className="btn-primary" onClick={retry}>
+            Try again
+          </button>
+          <button className="btn-secondary" onClick={logout}>
+            Return to sign in
+          </button>
+        </div>
+      </main>
+    );
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-20 text-slate-100">
-      <section className="mx-auto max-w-3xl rounded-2xl border border-slate-800 bg-slate-900 p-8 sm:p-12">
-        <p className="text-sm font-semibold uppercase tracking-widest text-emerald-400">Project setup</p>
-        <h1 className="mt-4 text-3xl font-bold sm:text-5xl">Car Dealership Inventory</h1>
-        <p className="mt-6 leading-relaxed text-slate-300">
-          The application foundation is ready for development. Account access and inventory
-          management will be added in the next milestones.
-        </p>
-      </section>
-    </main>
+    <Routes>
+      <Route path="/login" element={<AuthPage key="login" />} />
+      <Route path="/register" element={<AuthPage key="register" register />} />
+      <Route
+        path="/inventory"
+        element={user ? <InventoryPage /> : <Navigate to="/login" replace />}
+      />
+      <Route
+        path="*"
+        element={<Navigate to={user ? "/inventory" : "/login"} replace />}
+      />
+    </Routes>
   );
 }

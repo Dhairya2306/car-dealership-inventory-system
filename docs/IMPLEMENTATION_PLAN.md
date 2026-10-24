@@ -1,7 +1,8 @@
 # Implementation plan and requirements checklist
 
-Scope: a two-day local MVP. Scaffolding, authentication and the vehicle inventory backend are complete.
-The backend suite passes 118 tests; see TEST_REPORT.md for actual results and limitations.
+Scope: a two-day local MVP. Scaffolding, authentication, inventory backend and React workflows are complete.
+The suites pass 122 backend tests, 25 frontend tests and two live Chromium journeys;
+see TEST_REPORT.md for actual results and limitations.
 
 ## Day 1: backend (approximately 8 hours)
 
@@ -30,7 +31,8 @@ The backend suite passes 118 tests; see TEST_REPORT.md for actual results and li
 - [x] Add secret-free `.env.example` and `.gitignore`.
 - [x] Prepare optional PostgreSQL Compose template with a named volume and health check.
 - [x] Install backend runtime/dependencies, lock versions and verify PostgreSQL migrations.
-- [ ] Install frontend/Docker prerequisites; validate Compose and persistent development storage.
+- [x] Install frontend prerequisites and lock dependencies; verify tests, lint and build.
+- [ ] Install Docker; validate Compose and persistent development storage.
 - [x] User registration and login; unique normalized email; Argon2 hashes only.
 - [x] JWT validation, expiry, issuer/audience checks and reusable current-user/admin dependencies.
 - [x] Public registration cannot grant admin; backend role enforcement tested with test-only routes.
@@ -45,20 +47,20 @@ The backend suite passes 118 tests; see TEST_REPORT.md for actual results and li
 - [x] `POST /api/vehicles/{id}/purchase`: authenticated purchase with safe stock decrement.
 - [x] `POST /api/vehicles/{id}/restock`: admin-only positive stock increment.
 - [x] Input validation, missing resources, forbidden/unauthenticated requests, conflict responses.
-- [ ] React registration/login and authenticated inventory dashboard.
-- [ ] Search/filter controls and purchase buttons disabled at zero stock.
-- [ ] Admin add/update/delete/restock controls; responsive polished UI.
+- [x] React registration/login and authenticated inventory dashboard.
+- [x] Search/filter controls and purchase buttons disabled at zero stock.
+- [x] Authenticated add/edit and admin delete/restock controls; responsive polished UI.
 - [x] pytest + FastAPI TestClient, including PostgreSQL concurrent purchase integration tests.
-- [ ] Vitest + React Testing Library for forms, permissions, zero stock and error feedback.
+- [x] Vitest + React Testing Library for forms, permissions, zero stock and error feedback.
 - [x] Record Red-Green-Refactor evidence for the authentication/authorization foundation.
 - [x] Record vehicle/stock behavior failures before implementation and passing integration results.
 - [x] Meaningful local scaffold, failing-test and implementation commits with Codex co-author trailers.
 - [x] Initial README, detailed My AI Usage section, real prompt excerpt in root PROMPTS.md.
-- [ ] Actual screenshots and final tested setup instructions.
-- [ ] Final test report with real test counts, commands, results and known limitations.
+- [x] Actual screenshots and verified browser/test instructions; persistent setup documented separately.
+- [x] Final test report with real test counts, commands, results and known limitations.
 - [ ] Deployment/push only after explicit user authorization (outside this increment).
 
-## Design decisions for the next increments
+## Implemented design decisions
 
 - Use synchronous SQLAlchemy 2 sessions with psycopg and ordinary FastAPI `def` routes;
   PostgreSQL in development and integration tests, with a separate disposable test database.
@@ -77,7 +79,9 @@ The backend suite passes 118 tests; see TEST_REPORT.md for actual results and li
 - Return 201 on create, 200 on successful reads/updates/stock operations, 204 on delete,
   401 for missing/invalid credentials, 403 for insufficient role, 404 for missing records,
   409 for duplicate accounts/out-of-stock conflicts, 422 for invalid inputs.
-- Keep bearer tokens in memory initially; reload requires login. Do not place secrets in Vite
+- Keep bearer tokens in memory and tab-scoped sessionStorage for refresh persistence. Validate
+  the session and role with `/auth/me`; expire sessions and clear them on authenticated 401.
+  Do not place secrets in Vite
   environment variables. Development uses Vite's `/api` proxy; configure exact allowed origins
   if separate origins are later required.
 

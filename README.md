@@ -4,9 +4,11 @@ A two-day MVP project for authenticated vehicle inventory, customer purchases an
 management. Stack: FastAPI, SQLAlchemy 2, Pydantic, Alembic, PostgreSQL, JWT/Argon2, React,
 TypeScript, Vite and Tailwind CSS.
 
-**Current status: authentication and vehicle inventory backend implemented and tested.** Registration,
-login, JWT/role checks, database readiness, vehicle CRUD/search, pagination and atomic stock changes
-are available. Frontend workflows remain unimplemented; the UI still has a setup screen.
+**Current status: full-stack local MVP implemented and verified.** The React app includes
+registration/login, protected sessions, a responsive inventory dashboard, combined search, pagination,
+create/edit forms, one-unit purchases, and admin restock/delete dialogs. FastAPI enforces permissions
+and atomic stock changes. Verification: 122 backend tests, 25 frontend tests and two live Chromium
+workflows passed. Persistent development database setup and admin provisioning remain local setup tasks.
 See [the plan and requirements checklist](docs/IMPLEMENTATION_PLAN.md) and
 [actual verification results](docs/TEST_REPORT.md).
 
@@ -18,15 +20,18 @@ remaining work and steps for creating a GitHub repository before an explicitly a
 ```text
 backend/
   app/                  Routes, settings/security, User/Vehicle models, schemas and services
-  migrations/           Alembic environment, users migration and additive vehicles migration
+  migrations/           Users, vehicles and backward-compatible optional user-name migrations
   tests/                pytest/TestClient tests against isolated PostgreSQL
   pyproject.toml        Backend runtime and development dependencies
   uv.lock               Resolved backend dependency versions and package hashes
 frontend/
-  src/                  React entry point, starter screen, styles and test setup
-  package.json          Frontend dependencies and scripts
-docs/                   Implementation checklist, test report and future screenshots
+  src/                  Auth context, API client, pages, dialog components and component tests
+  e2e/                  Playwright journeys against the live API
+  package-lock.json     Reproducible npm dependencies
+  .env.example          Public API path, development proxy and display currency
+docs/                   Implementation checklist, test report and actual screenshots
 scripts/test_backend.py Temporary PostgreSQL cluster, migration checks and test runner
+scripts/test_frontend_integration.py Disposable PostgreSQL/API/Vite browser-test runner
 compose.yaml            Optional PostgreSQL service with persistent named storage
 .env.example            Configuration names and intentionally empty secrets
 PROMPTS.md              Actual user prompt excerpt from this conversation
@@ -36,14 +41,15 @@ PROMPTS.md              Actual user prompt excerpt from this conversation
 
 Use Python 3.12 and PostgreSQL 17 for the backend. Docker Desktop with Compose v2 can run the
 included persistent development database; a local PostgreSQL server also works. Use uv to install
-the locked backend dependencies. The frontend will need Node.js 22 (at least 22.12) with npm.
-Its Vite 7/Vitest 3 dependencies are still unverified and have no lockfile yet.
+the locked backend dependencies. The frontend needs Node.js 22 (at least 22.12) with npm.
+Vite 7, Vitest 5, React 19 and Tailwind 4 are installed and locked in `frontend/package-lock.json`.
 
 On 2026-10-24, uv and Python 3.12.15 were installed under ignored `.tools/`, and backend dependencies
 were installed in `backend/.venv`. PostgreSQL 17.11 was built from its checksum-verified official
 source into `.tools/postgres/` for isolated tests. The original Python 3.9 root `.venv` is preserved.
-Docker and Node/npm are still unavailable. The test runner shuts down and removes its temporary
-cluster; it does not leave a development database running.
+Node 22.23.4/npm 10.9.9 were subsequently installed under `.tools/node`, and Playwright Chromium
+under `.tools/browsers`. Docker remains unavailable. Test runners shut down and remove their
+temporary clusters; they do not leave a development database running.
 
 ## Local setup
 
@@ -54,6 +60,7 @@ From the project root, copy the example without overwriting an existing configur
 
 ```sh
 cp -n .env.example .env
+cp -n frontend/.env.example frontend/.env
 backend/.venv/bin/python -c 'import secrets; print(secrets.token_hex(32))'
 ```
 
@@ -89,8 +96,9 @@ python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 On another machine with uv installed, replace `.tools/uv/bin/uv` with `uv`; it can obtain Python 3.12.
 Both the API and Alembic load the root `.env`, with exported environment variables taking precedence.
-The migrations create `users` and `vehicles` with their validation constraints. Upgrading an
-existing `0001_create_users` database to `0002_create_vehicles` preserves its user records.
+The migrations create `users` and `vehicles` with their validation constraints. Revision
+`0003_user_name` adds a nullable name to existing users; existing records and passwords are preserved.
+The isolated runner verifies the original user columns across upgrade/downgrade and checks schema drift.
 Alembic needs only `DATABASE_URL`; starting the API also requires `JWT_SECRET_KEY`.
 
 The readiness endpoint is `http://127.0.0.1:8000/api/health`; interactive API docs are at `/docs`.
@@ -101,10 +109,13 @@ without connection details when PostgreSQL is unavailable. It does not check sch
 
 | Endpoint | JSON input | Result |
 | --- | --- | --- |
-| `POST /api/auth/register` | `email`, `password` | 201: ID, normalized email, role and timestamps |
+| `POST /api/auth/register` | `email`, `password`, optional `name` | 201: ID, normalized email, name, role and timestamps |
 | `POST /api/auth/login` | `email`, `password` | 200: `access_token`, `token_type`, `expires_in` |
+| `GET /api/auth/me` | Bearer token | 200: current user profile and authoritative role |
 | `GET /api/health` | None | PostgreSQL readiness, 200 or 503 |
 
+The registration UI requires a name (1–100 characters after trimming); the API keeps it optional
+for existing clients. Existing accounts with no name display their email.
 Email is trimmed, validated and lowercased for registration and login. Registration passwords must
 be 12–128 characters and are stored only as Argon2id hashes. Registration always assigns `user`;
 unknown fields including `role` and `is_admin` return 422. Duplicate email returns 409. Incorrect
@@ -179,16 +190,53 @@ failed writes; the dependency closes the session and rolls back outstanding work
 migration uses timezone-aware timestamps; ORM updates refresh `updated_at`. Direct SQL updates
 must update that timestamp explicitly. Password rehashing occurs after successful login when needed.
 
-Frontend, in a second terminal:
+## Frontend setup and architecture
+
+In a second terminal, from the project root on this Mac:
 
 ```sh
-cd frontend
-npm install
-npm run dev
+export PATH="$PWD/.tools/node/bin:$PATH"
+npm --prefix frontend ci
+npm --prefix frontend run dev
 ```
 
-Open `http://localhost:5173`. Vite proxies `/api` to port 8000. The frontend requires no secret
-environment variables. After the first verified install, use `npm ci` with the generated lockfile.
+On another machine, install Node 22.12+ and omit the PATH line. Open `http://localhost:5173`.
+The API from the backend instructions must be running on port 8000 with its database migrated.
+Register your own account; there are no demo credentials or automatically granted admin roles.
+Admin controls require an account provisioned by the database operator with role `admin`.
+A user-facing admin provisioning command is not implemented yet.
+
+Frontend configuration belongs in ignored `frontend/.env`, copied from its example:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `VITE_API_BASE_URL` | `/api` | Public API prefix included in the browser bundle |
+| `API_PROXY_TARGET` | `http://127.0.0.1:8000` | Vite development proxy destination |
+| `VITE_CURRENCY` | `INR` | ISO currency for display; prices do not include a stored currency |
+
+Restart Vite after changing configuration. Never put passwords or JWT signing secrets in `VITE_*`.
+The development proxy avoids cross-origin browser requests. For a direct API URL, set the backend's
+`CORS_ORIGINS` to the exact frontend origin. A production host must serve the SPA fallback and route
+`/api` to FastAPI, or configure a public API URL and CORS before building. Vite's proxy is development
+only; this project has not been deployed.
+
+- `auth/AuthProvider.tsx` owns login/logout, profile loading and expiry. `sessionStorage` retains the
+  bearer token across refreshes within a tab; closing the tab normally ends that session. It is
+  JavaScript-accessible, so preventing XSS remains important. No password is stored. Storage-disabled
+  browsers retain an in-memory session only. No refresh tokens are implemented.
+- The client decodes expiry only for UX; `/auth/me` and every backend endpoint validate signatures.
+  Roles come from the database profile. Authenticated 401 responses clear the matching session;
+  transient network errors offer retry. A 403 does not incorrectly log the user out.
+- `lib/api.ts` attaches bearer headers and translates API/network errors. `pages/InventoryPage.tsx`
+  owns filters, pagination and refreshes; requests are aborted when filters or pages change.
+- `components/VehicleDialog.tsx` handles create/edit/restock/delete with a native modal, labelled
+  inputs, keyboard dismissal and destructive confirmation. PUT excludes stock; purchases always
+  buy one unit. A stock conflict refreshes the inventory and displays the API error.
+- Prices are submitted as decimal strings. Numeric conversion is only for display and input-range
+  comparisons; persistence and arithmetic remain Decimal/NUMERIC in the backend.
+
+Dashboard stock summaries describe the current page, while the vehicle count comes from the API's
+filtered total. Purchases are disabled at zero stock or while another purchase is pending.
 
 ## Backend verification
 
@@ -215,18 +263,66 @@ in `_test` and run `backend/.venv/bin/python -m pytest backend/tests -q`. Tests 
 it, rolls back individual tests and drops only that schema. The test database user must be allowed
 to create schemas. Do not supply a production database.
 
-Current result: **118 passed**, including all 41 existing authentication/foundation tests and
-77 inventory cases. Concurrent tests use real independent PostgreSQL transactions: eight buyers
+Current result: **122 passed**, including the original 118 cases and four name/profile cases.
+Concurrent tests use real independent PostgreSQL transactions: eight buyers
 compete for one or three units; parallel restocks preserve every increment; edits during purchase
 do not restore stock; mixed purchases/restocks preserve totals. Migration checks and Ruff passed.
 One upstream Starlette warning about the httpx TestClient adapter remains. See [the test report](docs/TEST_REPORT.md)
-for exact commands and results. Frontend tests/build and browser review remain pending.
+for exact commands and results.
+
+## Frontend verification
+
+From the project root:
+
+```sh
+export PATH="$PWD/.tools/node/bin:$PATH"
+npm --prefix frontend run test
+npm --prefix frontend run lint
+npm --prefix frontend run build
+npm --prefix frontend audit --audit-level=moderate
+```
+
+Actual results: **25 tests passed**, ESLint and TypeScript/Vite build passed. npm reported zero
+known vulnerabilities after upgrading the scaffold's Vitest dependency. The build writes ignored
+`frontend/dist/`. This does not start a production deployment.
+
+For reproducible browser integration and screenshot capture:
+
+```sh
+export PATH="$PWD/.tools/node/bin:$PATH"
+export PLAYWRIGHT_BROWSERS_PATH="$PWD/.tools/browsers"
+(cd frontend && npx playwright install chromium)
+backend/.venv/bin/python scripts/test_frontend_integration.py --pg-bin .tools/postgres/bin
+```
+
+The browser runner starts a private temporary PostgreSQL database, applies all migrations, creates
+an admin with a random disposable password, and runs FastAPI on 8001 and Vite on 5175. Keep those
+ports free. It verifies health and CORS, runs **two passing live Chromium workflows**, then stops
+all services and removes the database. It never points at your persistent database. Browser tests
+use genuine API requests, while unit tests mock fetch. On another machine, provide the installed
+PostgreSQL binary directory with `--pg-bin`. Local service logs are ignored in `.tools/`.
+
+The browser journeys cover registration, login, CRUD, search, pagination, purchases to zero,
+refresh persistence, logout, invalid sessions, admin restock/delete confirmation and Escape dismissal.
+The mobile viewport check detects horizontal overflow. Firefox/Safari and production hosting have
+not been verified.
 
 ## Screenshots
 
-Pending a running application. Actual captures will be saved under `docs/screenshots/` and
-embedded here after the UI is implemented and reviewed. No screenshots or deployment URLs
-are claimed by this scaffold.
+These are actual Chromium captures from the live integration run using disposable sample inventory.
+The desktop and mobile captures occur at different points in the purchase workflow, so stock differs.
+Rerun the browser runner above to regenerate them. No real account credentials are shown.
+
+![Inventory dashboard](docs/screenshots/inventory-desktop.png)
+
+<details>
+<summary>Mobile inventory</summary>
+
+<img src="docs/screenshots/inventory-mobile.png" alt="Inventory on a 390-pixel mobile viewport" width="300" />
+
+</details>
+
+[Login screenshot](docs/screenshots/login.png) · [Registration screenshot](docs/screenshots/registration.png)
 
 ## My AI Usage
 
@@ -238,6 +334,8 @@ are claimed by this scaffold.
   authorization dependencies, CORS, isolated integration tests and their temporary database runner.
   The vehicle milestone adds its model/migration, schemas, seven endpoints, stock services,
   PostgreSQL concurrency tests, migration preservation checks and frontend API documentation.
+  The frontend milestone adds the React workflows, API/session handling, component/browser tests,
+  actual screenshots and setup documentation, plus optional names and `/auth/me` in the existing API.
 - **Engineering choices:** preserve the original virtual environment, use a separate Python 3.12
   environment, keep secrets out of Git, plan backend role enforcement and atomic stock changes.
   The user's later specification explicitly allows authenticated users to add/update vehicle
@@ -247,9 +345,13 @@ are claimed by this scaffold.
   were corrected. The next run passed all 41 tests. Account logic was then extracted from route
   handlers into a service module and the full suite rerun. Vehicle development first recorded four
   expected failures, then 45 passes for create/list; five further behavior checks failed before
-  implementing the remaining endpoints. The expanded backend now passes 118 cases. All database
-  work used temporary test data. Migration preservation and metadata drift checks ran; Docker and
-  frontend checks remain pending. These runs do not claim production load testing.
+  implementing the remaining endpoints. The backend now passes 122 cases. Frontend tests initially
+  had one ambiguous price matcher
+  (24 passed, one failed); scoping it to the intended vehicle fixed the assertion, yielding 25 passes.
+  ESLint/build and two live Chromium workflows passed. A dependency audit prompted a Vitest upgrade;
+  the resolved dependency tree reports zero known vulnerabilities. All database verification used
+  temporary data. Migration preservation and drift checks ran. Docker remains unverified, and these
+  checks do not claim production load testing.
 - **Human review:** review authorization assumptions, install prerequisites, then inspect real test
   results and the UI at each milestone. No human review or acceptance is claimed yet.
 - **Ongoing record:** append actual future prompt/response excerpts or genuine public links;

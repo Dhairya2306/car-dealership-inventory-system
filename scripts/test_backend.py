@@ -100,7 +100,9 @@ def main():
             engine = create_engine(url)
             try:
                 sentinel_id = uuid4()
-                lookup_user = text("SELECT * FROM users WHERE id = :id")
+                lookup_user = text(
+                    "SELECT id, email, password_hash, role, created_at, updated_at FROM users WHERE id = :id"
+                )
                 with engine.begin() as connection:
                     connection.execute(
                         text(
@@ -124,6 +126,13 @@ def main():
                         == original_user
                     )
                     assert connection.scalar(text("SELECT count(*) FROM vehicles")) == 0
+                    assert (
+                        connection.scalar(
+                            text("SELECT name FROM users WHERE id = :id"),
+                            {"id": sentinel_id},
+                        )
+                        is None
+                    )
                 run([*alembic, "downgrade", "0001_create_users"], env=env)
                 with engine.begin() as connection:
                     assert (

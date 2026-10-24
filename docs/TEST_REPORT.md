@@ -1,8 +1,94 @@
 # Verification report
 
-Date: 2026-10-24 (Asia/Kolkata). Current scope: completed vehicle inventory backend.
+Date: 2026-10-24 (Asia/Kolkata). Current scope: integrated React frontend and backend.
 
-## Vehicle milestone: latest verified result
+## Frontend milestone: latest verified result
+
+**122 backend tests, 25 frontend tests and two live Chromium journeys passed.** No persistent
+or production database was used. Browser tests started real FastAPI and Vite services, exercised
+the actual API and captured the committed screenshots. Services and the temporary database were
+stopped after verification. No push or deployment was performed.
+
+### Commands actually run and results
+
+Commands ran from the project root; Node commands used the installed local Node on PATH:
+
+```sh
+export PATH="$PWD/.tools/node/bin:$PATH"
+backend/.venv/bin/python scripts/test_backend.py --pg-bin .tools/postgres/bin -q --tb=short
+npm --prefix frontend run test
+npm --prefix frontend run lint
+npm --prefix frontend run build
+npm --prefix frontend audit --audit-level=moderate
+backend/.venv/bin/python -m ruff check backend scripts
+backend/.venv/bin/python -m ruff format --check backend scripts
+git diff --check
+export PLAYWRIGHT_BROWSERS_PATH="$PWD/.tools/browsers"
+backend/.venv/bin/python scripts/test_frontend_integration.py --pg-bin .tools/postgres/bin
+```
+
+| Check | Actual result |
+| --- | --- |
+| Full backend runner | 122 passed, one existing warning, 10.53s; exit 0 |
+| Alembic checks inside backend runner | Head `0003_user_name`; no schema drift; upgrade/downgrade round trip passed |
+| Existing-account preservation | Original ID/email/hash/role/timestamps preserved; new optional name is NULL |
+| Vitest/React Testing Library | 25 passed across three files, 1.58s; exit 0 |
+| ESLint | Passed; final rerun after browser-test formatting also passed |
+| TypeScript/Vite production build | Passed; CSS 25.86 kB and JS 292.62 kB before gzip |
+| npm audit | `found 0 vulnerabilities` |
+| Ruff lint/format | `All checks passed!`; 34 files already formatted |
+| Git whitespace check | Passed, no output |
+| Live API/Vite/CORS | Health 200, Vite ready, allowed-origin OPTIONS response verified |
+| Playwright Chromium | Two passed; initial run 6.8s, final rerun 3.2s after runner/format cleanup |
+
+The live browser command runs migrations before startup and uses its own random test admin password.
+The two browser journeys intentionally run serially against shared disposable inventory. There are
+no hardcoded usable credentials. Logs, browser binaries, node_modules, dist and browser failure
+artifacts are ignored. The runtime was Node 22.23.4/npm 10.9.9, Vite 7.3.7 and Vitest 5.0.5.
+
+### Coverage
+
+- Auth forms: required name, email/password validation, registration payload, login failures,
+  protected navigation, session restoration, malformed/expired/revoked tokens and retry after a
+  network failure. Optional backend names preserve old registration clients.
+- API client: bearer header, JSON payloads, FastAPI 422 details, 204 responses, network/non-JSON
+  errors, authenticated 401 session clearing and 403 behavior.
+- Dashboard: rendering, combined filters, invalid price ranges, pagination, loading/empty/error
+  states, retry, create validation, edit payload excluding stock and admin-only controls.
+- Purchase: zero-stock disabling, exactly one unit per API request, success refresh and a 409
+  stock-conflict refresh with error feedback. Existing PostgreSQL concurrency tests still pass.
+- Browser: register/login, create/edit, search/pagination, buy to zero, reload session, logout,
+  invalid-session redirect, admin restock, delete cancellation/confirmation, Escape dismissal.
+- Screenshots: actual login, registration, desktop inventory and 390px mobile inventory images
+  under `docs/screenshots/`. Desktop/mobile images were visually reviewed; a browser assertion
+  also confirms no horizontal overflow at the mobile viewport. Sample inventory is test-only.
+
+### Actual failures and corrections
+
+The first frontend test run had 24 passes and one failure: a price matcher selected two vehicles
+with the same price. The corrected assertion scopes the price to the intended vehicle row; the
+application behavior and test intent were preserved. The next run passed all 25 tests.
+
+The scaffold's initial Vitest 3 dependency tree produced three npm audit findings (two moderate,
+one critical). Updating Vitest to 5.0.5 removed those findings; tests/build passed with the updated
+lockfile. npm also printed an ESLint 9 support/deprecation notice during installation; lint still
+passes. The existing Starlette httpx TestClient deprecation warning remains. Playwright printed a
+harmless NO_COLOR/FORCE_COLOR conflict warning; neither warning was hidden.
+
+### Remaining limitations
+
+Docker is unavailable, so Compose and persistent container storage were not verified. No root
+`.env`, persistent development database or permanent admin account was created. Those setup steps
+are documented in README; admin provisioning still needs an operator-managed process. Session
+storage is scoped to a tab and JavaScript-accessible; there is no refresh-token flow. Currency is
+configurable display metadata, not a per-record database field. Browser checks used Chromium;
+Safari/Firefox, production hosting and load testing were not performed.
+
+## Historical vehicle milestone
+
+The following results describe the preceding backend milestone before frontend integration.
+
+### Verified result at that time
 
 **118 passed, 1 warning in 9.24s** in the final rerun requested by the user. The full temporary
 PostgreSQL runner exited 0 and shut down its cluster. This includes all 41 existing authentication

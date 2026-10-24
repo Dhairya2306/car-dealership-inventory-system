@@ -24,7 +24,30 @@ def test_registration_normalizes_email_and_returns_only_public_fields(client):
     user = response.json()
     assert user["email"] == "driver@example.com"
     assert user["role"] == "user"
-    assert {"id", "email", "role", "created_at", "updated_at"} == set(user)
+    assert {"id", "email", "name", "role", "created_at", "updated_at"} == set(user)
+    assert user["name"] is None
+
+
+def test_registration_persists_name_and_me_returns_profile(client):
+    response = register(client, name="  Alex Morgan  ")
+    assert response.status_code == 201
+    token = client.post("/api/auth/login", json=ACCOUNT).json()["access_token"]
+    profile = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert profile.status_code == 200
+    assert profile.json() == response.json()
+    assert profile.json()["name"] == "Alex Morgan"
+
+
+@pytest.mark.parametrize("name", [" ", "x" * 101])
+def test_registration_rejects_invalid_name(client, name):
+    assert register(client, name=name).status_code == 422
+
+
+def test_me_requires_valid_authentication(client):
+    assert client.get("/api/auth/me").status_code == 401
+    assert (
+        client.get("/api/auth/me", headers={"Authorization": "Bearer invalid"}).status_code == 401
+    )
 
 
 def test_duplicate_normalized_email_returns_conflict(client):

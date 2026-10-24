@@ -12,8 +12,8 @@ class DuplicateEmailError(Exception):
     pass
 
 
-def register_user(session: Session, email: str, password: str) -> User:
-    user = User(email=email, password_hash=hash_password(password), role=Role.USER)
+def register_user(session: Session, email: str, password: str, name: str | None = None) -> User:
+    user = User(email=email, name=name, password_hash=hash_password(password), role=Role.USER)
     session.add(user)
     try:
         session.commit()
