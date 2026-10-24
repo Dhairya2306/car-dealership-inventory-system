@@ -1,11 +1,6 @@
-"""Application entry point; feature routers will be added incrementally."""
+"""ASGI entry point; missing or invalid environment configuration fails at startup."""
 
-from fastapi import FastAPI
+from app.application import create_app
+from app.core.config import Settings
 
-app = FastAPI(title="Car Dealership Inventory", version="0.1.0")
-
-
-@app.get("/api/health", tags=["health"])
-def health() -> dict[str, str]:
-    """Process liveness only; this does not check database readiness."""
-    return {"status": "ok"}
+app = create_app(Settings())
