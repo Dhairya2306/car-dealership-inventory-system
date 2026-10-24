@@ -59,3 +59,57 @@ Inspect the workspace and produce a concise implementation plan and requirements
 ```text
 I’ll inspect the workspace and available tools first, then create the project scaffold and a staged implementation checklist. I’ll keep feature implementation for later steps.
 ```
+
+## User — PostgreSQL/authentication increment (2026-10-24)
+
+The following is the actual request text; IDE context is omitted.
+
+```text
+Continue the Car Dealership Inventory System in the
+current workspace. Follow the project specification
+already established in our conversation.
+
+Implement PostgreSQL integration using SQLAlchemy 2,
+database session management and Alembic migrations.
+
+Create a User model with:
+- Unique normalized email
+- Argon2-hashed password
+- Role: user or admin
+- Timestamps
+
+Implement:
+POST /api/auth/register
+POST /api/auth/login
+GET  /api/health
+
+Registration must create a normal user. Never allow
+a client to grant itself admin privileges.
+
+Login must verify the password and issue a signed JWT
+with an expiry. Add reusable dependencies for the
+current authenticated user and admin-only access.
+
+Read credentials and JWT secrets from environment
+variables. Configure CORS for the local frontend.
+
+Use Pydantic schemas, clear errors and maintainable
+modules. Write pytest tests for registration, login,
+duplicate email, incorrect password, invalid/expired
+JWT and role authorization.
+
+Use an isolated test database, never production data.
+
+Run relevant tests and migrations if possible. Fix
+failures caused by your changes. Report exact commands,
+actual results, changed files and remaining blockers.
+
+Do not implement vehicle APIs until this foundation
+is verified.
+```
+
+## Assistant — initial response to the authentication increment
+
+```text
+I’ll check the scaffold and available runtimes, then implement the database and authentication foundation. I’ll test against a separate PostgreSQL database and leave vehicle APIs for a later step.
+```

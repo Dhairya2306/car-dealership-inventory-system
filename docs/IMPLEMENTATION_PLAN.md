@@ -1,6 +1,7 @@
 # Implementation plan and requirements checklist
 
-Scope: a two-day local MVP. This first increment provides scaffolding only.
+Scope: a two-day local MVP. Scaffolding and the PostgreSQL/authentication foundation are complete.
+The latest foundation run passed 41 tests; see TEST_REPORT.md for actual results and limitations.
 
 ## Day 1: backend (approximately 8 hours)
 
@@ -28,10 +29,12 @@ Scope: a two-day local MVP. This first increment provides scaffolding only.
 - [x] Create backend/frontend structure and dependency manifests.
 - [x] Add secret-free `.env.example` and `.gitignore`.
 - [x] Prepare optional PostgreSQL Compose template with a named volume and health check.
-- [ ] Install prerequisites, resolve/lock dependencies, validate Compose and persistence.
-- [ ] User registration and login; unique email; Argon2 hashes only.
-- [ ] JWT bearer validation, expiration, signed algorithm allowlist, protected inventory routes.
-- [ ] Public registration cannot grant admin; backend permission checks; local admin provisioning.
+- [x] Install backend runtime/dependencies, lock versions and verify PostgreSQL migrations.
+- [ ] Install frontend/Docker prerequisites; validate Compose and persistent development storage.
+- [x] User registration and login; unique normalized email; Argon2 hashes only.
+- [x] JWT validation, expiry, issuer/audience checks and reusable current-user/admin dependencies.
+- [x] Public registration cannot grant admin; backend role enforcement tested with test-only routes.
+- [ ] Apply dependencies to inventory routes; add local admin provisioning.
 - [ ] Vehicle: generated unique ID, make, model, category, decimal price, integer stock quantity.
 - [ ] `POST /api/vehicles`: add vehicle (planned admin-only).
 - [ ] `GET /api/vehicles`: list vehicles (authenticated).
@@ -46,8 +49,9 @@ Scope: a two-day local MVP. This first increment provides scaffolding only.
 - [ ] Admin add/update/delete/restock controls; responsive polished UI.
 - [ ] pytest + FastAPI TestClient, including PostgreSQL concurrent purchase integration tests.
 - [ ] Vitest + React Testing Library for forms, permissions, zero stock and error feedback.
-- [ ] Record Red-Green-Refactor evidence for authentication, authorization and stock operations.
-- [ ] Frequent meaningful local commits with AI co-author trailers.
+- [x] Record Red-Green-Refactor evidence for the authentication/authorization foundation.
+- [ ] Record stock-operation Red-Green-Refactor evidence when implemented.
+- [x] Meaningful local scaffold, failing-test and implementation commits with Codex co-author trailers.
 - [x] Initial README, detailed My AI Usage section, real prompt excerpt in root PROMPTS.md.
 - [ ] Actual screenshots and final tested setup instructions.
 - [ ] Final test report with real test counts, commands, results and known limitations.
