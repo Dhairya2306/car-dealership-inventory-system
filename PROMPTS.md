@@ -335,3 +335,34 @@ Tell me:
 
 Work incrementally, reuse the existing implementation and investigate failures instead of bypassing them.
 ```
+
+
+## Local setup and submission milestone — actual user excerpts, 2026-10-25
+
+Verbatim excerpts from the user's request in this conversation (not a complete chat transcript):
+
+```text
+**Goal: Finish local development setup, permanent admin provisioning, and final submission readiness.**
+
+Safety rules:
+
+- Preserve all existing files, commits and history.
+- Do not reset, discard or overwrite existing work.
+- Do not push to GitHub.
+- Inspect the existing README, environment configuration, database setup, migrations, authentication routes, tests and Git status before making changes.
+- Do not claim something works unless you verify it.
+```
+
+```text
+### 2. Permanent admin provisioning
+
+Implement a safe, documented way to create the first admin account.
+
+- Prefer a dedicated CLI command or script that promotes an existing registered user to admin.
+- Require an explicit email and verify the user exists.
+- Avoid hardcoded credentials or default passwords.
+- Make the command idempotent and safe to rerun.
+- Ensure ordinary registration cannot grant admin privileges.
+- Add tests for authorized promotion, nonexistent users and prevention of privilege escalation.
+- Do not promote any real user automatically.
+```

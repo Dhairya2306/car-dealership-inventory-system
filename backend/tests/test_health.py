@@ -38,3 +38,17 @@ def test_cors_accepts_frontend_and_rejects_other_origins(client):
             assert response.headers["access-control-allow-origin"] == origin
         else:
             assert "access-control-allow-origin" not in response.headers
+
+
+def test_login_database_failure_has_safe_retryable_error(client, app):
+    session = Mock()
+    session.scalar.side_effect = OperationalError(
+        "private SQL", {}, Exception("private database password")
+    )
+    app.dependency_overrides[get_session] = lambda: session
+    response = client.post(
+        "/api/auth/login", json={"email": "driver@example.com", "password": "test-password"}
+    )
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Database unavailable. Please try again."}
+    assert "private" not in response.text

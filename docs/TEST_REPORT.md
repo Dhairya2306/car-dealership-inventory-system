@@ -1,8 +1,128 @@
 # Verification report
 
-Date: 2026-10-24 (Asia/Kolkata). Current scope: integrated React frontend and backend.
+Date: 2026-10-25 (Asia/Kolkata). Current scope: local setup, admin provisioning and submission verification.
 
-## Frontend milestone: latest verified result
+## Final local setup milestone — 2026-10-25
+
+**135 backend tests, 25 frontend tests and three Chromium workflows passed.** Persistent local
+initialization, operator CLI promotion and API/database restart verification also passed. No real
+user was promoted. The existing screenshots were preserved; new browser captures are ignored.
+
+### Commands actually executed
+
+From the project root (Node/browser PATH variables are needed in this workspace):
+
+```sh
+UV_PYTHON_INSTALL_DIR="$PWD/.tools/python" .tools/uv/bin/uv sync --project backend --extra dev --locked
+.tools/uv/bin/uv pip check --python backend/.venv/bin/python
+export PATH="$PWD/.tools/node/bin:$PATH"
+npm --prefix frontend ci
+backend/.venv/bin/python scripts/test_backend.py --pg-bin .tools/postgres/bin -q --tb=short
+npm --prefix frontend run test
+npm --prefix frontend run lint
+frontend/node_modules/.bin/prettier --check 'frontend/src/**/*.{ts,tsx,css}' 'frontend/*.{ts,js,json}' 'frontend/e2e/*.ts'
+npm --prefix frontend run build
+npm --prefix frontend audit --audit-level=moderate
+backend/.venv/bin/python -m ruff check backend scripts
+backend/.venv/bin/python -m ruff format --check backend scripts
+export PLAYWRIGHT_BROWSERS_PATH="$PWD/.tools/browsers"
+backend/.venv/bin/python scripts/test_frontend_integration.py --pg-bin .tools/postgres/bin
+backend/.venv/bin/python scripts/verify_local_setup.py --pg-bin .tools/postgres/bin
+git diff --check
+```
+
+| Check | Actual result |
+| --- | --- |
+| Locked backend install / package compatibility | 47 packages resolved; 44 installed packages compatible |
+| npm clean install | 269 packages installed; 270 audited; zero vulnerabilities |
+| Full PostgreSQL pytest runner | 135 passed, one existing warning, 16.33s; exit 0 |
+| Migrations in isolated backend runner | Upgrade/downgrade, existing-user preservation and metadata drift checks passed |
+| Frontend component tests | 25 passed in three files, 2.05s |
+| ESLint / Prettier | Passed |
+| TypeScript / Vite production build | Passed; JS 292.62 kB, CSS 25.86 kB before gzip |
+| npm audit | Zero known vulnerabilities |
+| Ruff lint / formatting | Passed; 39 files formatted |
+| Chromium | Three passed, 6.2s; live health/CORS checks passed |
+| Fresh setup/persistence verification | All four checks passed; temporary services stopped |
+
+### New coverage and actual corrections
+
+Nine CLI cases cover exact-account promotion, preservation of identity/password/other users,
+idempotency and unchanged timestamp on rerun, CLI output/exit codes, missing/invalid email,
+missing user, sanitized database failure and rejected public role assignment/promotion route.
+Three local setup tests verify refusal to overwrite `.env`/data and exclusive mode-0600 secret
+files. One API regression test verifies a sanitized retryable 503 when login cannot reach PostgreSQL.
+All previous 122 backend cases are retained, including stock concurrency and role enforcement.
+
+The initial targeted command was:
+
+```sh
+backend/.venv/bin/python scripts/test_backend.py --pg-bin .tools/postgres/bin -q -k 'test_admin_cli or test_login_database_failure' --tb=short
+```
+
+Before implementation, pytest stopped with one collection error because `app.cli` did not exist
+(122 deselected, exit 2 from pytest; runner failed). After implementation, the same command passed
+10 cases, with 122 deselected, in 0.31s. The full suite subsequently passed 135 cases. No test was
+removed or weakened. Ruff found three long strings and a missing explicit subprocess `check`
+argument; these and a formatting mismatch were corrected before successful checks.
+
+The third Chromium journey deliberately aborts the login network request, verifies the clear UI
+error, then removes the interception and successfully signs in against FastAPI. This is a simulated
+browser network failure, not a claim that Playwright stopped the API. The separate persistence
+runner actually stops the API and PostgreSQL and verifies recovery.
+
+### Persistence, promotion and outages
+
+`scripts/verify_local_setup.py` creates a new private temporary directory, copies only the safe
+`.env.example`, and invokes the same initializer used for development. It uses SCRAM-authenticated
+TCP PostgreSQL on 55441 and a separate API on 8002. It verifies:
+
+1. Private `.env` permissions, a database application role without superuser/create-role/create-db
+   privileges, migration to head and no schema drift.
+2. Normal registration, rejected client-supplied role, initial 403 on admin actions, then the actual
+   `python -m app.cli promote-admin --email persistence-test@example.com` subprocess and its rerun.
+   The email belongs only to that disposable database. A CLI attempt with an incorrect database
+   password fails without changing the role or exposing credentials. Existing JWTs resolve the
+   new database role after authorized promotion.
+3. API stop/restart and database stop/restart retain complete user and vehicle rows, including
+   password hash, UUID, timestamps, role, decimal price and stock. Login still works afterward.
+4. Stopped API refuses connections; stopped database produces health 503 and sanitized inventory
+   503; restarting the same data directory restores successful requests.
+
+No migrations to base, reset, deletion or recreation are used during the persistence comparison.
+Only after checks does the runner stop services and remove its own temporary data.
+
+### This workspace's permanent development setup
+
+The following commands were separately executed successfully against the newly initialized,
+previously absent local development cluster:
+
+```sh
+backend/.venv/bin/python -m app.local_database init --pg-bin .tools/postgres/bin
+backend/.venv/bin/python -m alembic -c backend/alembic.ini upgrade head
+backend/.venv/bin/python -m alembic -c backend/alembic.ini current
+backend/.venv/bin/python -m alembic -c backend/alembic.ini check
+backend/.venv/bin/python -m app.local_database status --pg-bin .tools/postgres/bin
+```
+
+Result: PostgreSQL running at `127.0.0.1:55432`, head `0003_user_name`, no upgrade operations.
+A read-only database inspection verified zero users, zero vehicles and a restricted application
+role. Root `.env` is mode 0600. `git check-ignore` confirmed `.env`, the data directory and operator
+password are ignored; secrets were not printed or staged. No real application accounts were
+created or promoted. Unlike test clusters, this persistent cluster remains running for the user.
+
+### Submission limits
+
+Homebrew installation instructions were checked against official formula pages but not executed:
+Homebrew and Docker are absent here. Docker/Compose, Safari, Firefox, external hosting and production
+load were not verified. The local PostgreSQL build has no TLS and binds to loopback only. Permanent
+admin creation requires the operator to register and explicitly choose an account; there is no
+default password. Existing Starlette/httpx, ESLint 9 support, whatwg-encoding and browser color-env
+warnings remain; tests/build passed and npm audit found zero vulnerabilities. Earlier milestone
+records below are historical. No push was performed during this task.
+
+## Historical frontend milestone — 2026-10-24
+
 
 **122 backend tests, 25 frontend tests and two live Chromium journeys passed.** No persistent
 or production database was used. Browser tests started real FastAPI and Vite services, exercised

@@ -194,6 +194,7 @@ def main():
                     "E2E_ADMIN_EMAIL": admin_email,
                     "E2E_ADMIN_PASSWORD": admin_password,
                     "E2E_BASE_URL": "http://127.0.0.1:5175",
+                    "E2E_SCREENSHOT_DIR": str(ROOT / ".tools" / "browser-screenshots"),
                 }
                 run(["npm", "--prefix", "frontend", "run", "test:e2e"], env=browser_env)
             finally:

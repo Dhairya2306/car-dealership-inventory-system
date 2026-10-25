@@ -1,8 +1,8 @@
 # Implementation plan and requirements checklist
 
 Scope: a two-day local MVP. Scaffolding, authentication, inventory backend and React workflows are complete.
-The suites pass 122 backend tests, 25 frontend tests and two live Chromium journeys;
-see TEST_REPORT.md for actual results and limitations.
+The suites pass 135 backend tests, 25 frontend tests and three Chromium journeys;
+see TEST_REPORT.md for actual results and limitations. Final local verification: 2026-10-25.
 
 ## Day 1: backend (approximately 8 hours)
 
@@ -32,12 +32,13 @@ see TEST_REPORT.md for actual results and limitations.
 - [x] Prepare optional PostgreSQL Compose template with a named volume and health check.
 - [x] Install backend runtime/dependencies, lock versions and verify PostgreSQL migrations.
 - [x] Install frontend prerequisites and lock dependencies; verify tests, lint and build.
-- [ ] Install Docker; validate Compose and persistent development storage.
+- [x] Initialize and verify persistent loopback PostgreSQL, restart behavior and private configuration.
+- [ ] Optional Docker: install and validate Compose/container storage (not available on this Mac).
 - [x] User registration and login; unique normalized email; Argon2 hashes only.
 - [x] JWT validation, expiry, issuer/audience checks and reusable current-user/admin dependencies.
 - [x] Public registration cannot grant admin; backend role enforcement tested with test-only routes.
 - [x] Apply authentication/admin dependencies to inventory routes.
-- [ ] Add local admin provisioning.
+- [x] Add operator CLI promotion of an existing account; idempotent and tested without real-user promotion.
 - [x] Vehicle: generated unique ID, make, model, category, decimal price, integer stock quantity.
 - [x] `POST /api/vehicles`: authenticated user adds a vehicle (updated user specification).
 - [x] `GET /api/vehicles`: list vehicles with pagination (authenticated).

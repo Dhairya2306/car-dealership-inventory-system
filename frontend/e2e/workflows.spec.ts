@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 
 const password = `Browser-test-${randomUUID()}`;
-const screenshotDir = "../docs/screenshots";
+const screenshotDir = process.env.E2E_SCREENSHOT_DIR || "../docs/screenshots";
 
 // These two journeys share inventory in the runner's disposable database.
 test.describe.configure({ mode: "serial" });
@@ -176,5 +176,25 @@ test("real admin restock, deletion confirmation and keyboard dialog dismissal", 
     .click();
   await expect(
     page.getByRole("heading", { name: "No vehicles match your filters" }),
+  ).toBeVisible();
+});
+
+test("API network failure gives a clear error and sign-in can be retried", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  await page.route("**/api/auth/login", (route) =>
+    route.abort("connectionrefused"),
+  );
+  await page.getByLabel("Email address").fill(process.env.E2E_ADMIN_EMAIL!);
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill(process.env.E2E_ADMIN_PASSWORD!);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveText(/Unable to connect/);
+  await page.unroute("**/api/auth/login");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Vehicle inventory", exact: true }),
   ).toBeVisible();
 });

@@ -7,19 +7,23 @@ TypeScript, Vite and Tailwind CSS.
 **Current status: full-stack local MVP implemented and verified.** The React app includes
 registration/login, protected sessions, a responsive inventory dashboard, combined search, pagination,
 create/edit forms, one-unit purchases, and admin restock/delete dialogs. FastAPI enforces permissions
-and atomic stock changes. Verification: 122 backend tests, 25 frontend tests and two live Chromium
-workflows passed. Persistent development database setup and admin provisioning remain local setup tasks.
+and atomic stock changes. Final verification on 2026-10-25: **135 backend tests, 25 frontend tests
+and three Chromium workflows passed**. Persistent local setup, restart checks and operator-only admin
+provisioning are implemented. This workspace has an empty migrated development database; no real
+application user was created or promoted.
 See [the plan and requirements checklist](docs/IMPLEMENTATION_PLAN.md) and
 [actual verification results](docs/TEST_REPORT.md).
 
-The [workspace and Git audit](docs/WORKSPACE_AUDIT.md) lists the existing files, verified features,
-remaining work and steps for creating a GitHub repository before an explicitly approved push.
+The [historical workspace and Git audit](docs/WORKSPACE_AUDIT.md) records an earlier milestone.
+Use this README and the latest test-report section for current setup and results.
 
 ## Workspace layout
 
 ```text
 backend/
   app/                  Routes, settings/security, User/Vehicle models, schemas and services
+  app/cli.py            Operator-only promotion of an existing account to admin
+  app/local_database.py  Safe persistent local database initialization/start/stop/status
   migrations/           Users, vehicles and backward-compatible optional user-name migrations
   tests/                pytest/TestClient tests against isolated PostgreSQL
   pyproject.toml        Backend runtime and development dependencies
@@ -32,6 +36,7 @@ frontend/
 docs/                   Implementation checklist, test report and actual screenshots
 scripts/test_backend.py Temporary PostgreSQL cluster, migration checks and test runner
 scripts/test_frontend_integration.py Disposable PostgreSQL/API/Vite browser-test runner
+scripts/verify_local_setup.py Fresh setup, CLI and API/database restart/outage verification
 compose.yaml            Optional PostgreSQL service with persistent named storage
 .env.example            Configuration names and intentionally empty secrets
 PROMPTS.md              Actual user prompt excerpt from this conversation
@@ -49,29 +54,110 @@ were installed in `backend/.venv`. PostgreSQL 17.11 was built from its checksum-
 source into `.tools/postgres/` for isolated tests. The original Python 3.9 root `.venv` is preserved.
 Node 22.23.4/npm 10.9.9 were subsequently installed under `.tools/node`, and Playwright Chromium
 under `.tools/browsers`. Docker remains unavailable. Test runners shut down and remove their
-temporary clusters; they do not leave a development database running.
+temporary clusters. On 2026-10-25 a separate persistent development cluster was initialized
+under ignored `.tools/dev-postgres` on port 55432. It remains running, with no application users
+or vehicles. Its generated `.env` and operator-password file are private and ignored. Do not delete
+`.tools` as cache: it now contains your persistent database as well as the earlier downloaded tools.
 
-## Local setup
+## Fresh macOS setup
 
-The isolated tests and migrations have run successfully. The following persistent development
-setup still requires your local database credentials; no `.env` or development accounts were created.
+Use a terminal in the project root. Do not edit files inside `.venv`, `node_modules` or caches.
+The application source is in `backend/app` and `frontend/src`.
 
-From the project root, copy the example without overwriting an existing configuration:
+### Install prerequisites and locked dependencies
+
+On a fresh Mac with [Homebrew](https://brew.sh/) installed:
+
+```sh
+brew install uv node@22 postgresql@17
+export PATH="$(brew --prefix node@22)/bin:$PATH"
+uv sync --project backend --extra dev --locked
+npm --prefix frontend ci
+```
+
+The official [uv](https://formulae.brew.sh/formula/uv),
+[Node 22](https://formulae.brew.sh/formula/node@22) and
+[PostgreSQL 17](https://formulae.brew.sh/formula/postgresql@17) formula pages were checked.
+Homebrew itself is not installed here, so those installation commands were not executed on this Mac.
+The locked uv/npm dependency installs and the remaining setup were verified with local binaries.
+uv supplies Python 3.12 when needed. Use Node 22.12+; the tested version is 22.23.4.
+
+In **this already-prepared workspace**, use the existing binaries instead:
+
+```sh
+export PATH="$PWD/.tools/node/bin:$PATH"
+UV_PYTHON_INSTALL_DIR="$PWD/.tools/python" .tools/uv/bin/uv sync --project backend --extra dev --locked
+npm --prefix frontend ci
+```
+
+### Option A: dedicated persistent database (verified)
+
+For a **fresh clone without a root `.env`**, run:
+
+```sh
+backend/.venv/bin/python -m app.local_database init --pg-bin "$(brew --prefix postgresql@17)/bin"
+backend/.venv/bin/python -m alembic -c backend/alembic.ini upgrade head
+backend/.venv/bin/python -m alembic -c backend/alembic.ini current
+backend/.venv/bin/python -m alembic -c backend/alembic.ini check
+```
+
+On this prepared Mac, replace the `--pg-bin` argument with `.tools/postgres/bin`.
+**Initialization has already been run here; do not rerun init to start the database.**
+
+The initializer creates `.tools/dev-postgres/data`, listens only on `127.0.0.1:55432`, uses SCRAM
+password authentication, and creates a database owned by an application role without superuser,
+create-role or create-database privileges. Random database/JWT secrets are written to a new root
+`.env` with mode 0600; none are printed. The cluster operator password is stored privately under
+`.tools/dev-postgres/operator-password`. It creates no application account. `--port` can select a
+free port during init; later starts reuse the recorded port. TCP only is used for this local cluster.
+
+Init refuses to overwrite **any existing `.env` or managed cluster**, including a partial previous
+setup. It never deletes data. If a failure leaves files, inspect them and the local log; do not remove
+an existing configuration/database to bypass the guard. Configure an existing server manually using
+Option B. Exported `DATABASE_URL`/JWT variables override `.env`; unset stale exports if necessary.
+
+Manage this workspace's database as your normal macOS user:
+
+```sh
+backend/.venv/bin/python -m app.local_database status --pg-bin .tools/postgres/bin
+backend/.venv/bin/python -m app.local_database stop --pg-bin .tools/postgres/bin
+backend/.venv/bin/python -m app.local_database start --pg-bin .tools/postgres/bin
+```
+
+Use your Homebrew PostgreSQL bin directory on a fresh machine. Stop/start retain all data; after
+reboot, use start. This is not installed as a login service. A second start of an already-running
+server returns a nonzero pg_ctl result; use status first. No reset/delete command is provided.
+Back up your database before removing the checkout or `.tools`. The bundled PostgreSQL build lacks
+TLS and is restricted to local development; use a standard PostgreSQL distribution for remote hosting.
+
+### Option B: existing PostgreSQL or Docker (manual alternative)
+
+Preserve existing configuration. If no `.env` exists, copy the example and generate separate secrets:
 
 ```sh
 cp -n .env.example .env
-cp -n frontend/.env.example frontend/.env
+chmod 600 .env
 backend/.venv/bin/python -c 'import secrets; print(secrets.token_hex(32))'
 ```
 
-Use independently generated values for `POSTGRES_PASSWORD` and `JWT_SECRET_KEY` in `.env`.
-Put the same database password into `DATABASE_URL`; hexadecimal values need no URL encoding.
-If you change the database/user/port, update the URL accordingly. Never commit `.env`.
-The API requires a JWT secret of at least 32 characters, fixes the signing algorithm to HS256,
-and issues tokens with a configurable expiry (30 minutes by default), issuer and audience.
-`CORS_ORIGINS` is a JSON list of exact allowed origins; the default is `http://localhost:5173`.
+Run the generator separately for each secret and enter them locally; never paste secrets into chat
+or commit them. Set `POSTGRES_PASSWORD`, `DATABASE_URL` and `JWT_SECRET_KEY`. The URL must use
+`postgresql+psycopg://USER:PASSWORD@HOST:PORT/DATABASE`. Percent-encode reserved password characters;
+generated hex values need no encoding. JWT secrets need at least 32 characters.
 
-With Docker installed and running:
+For a server you administer, PostgreSQL's `createuser` and `createdb` can create a dedicated role
+and database without resetting other databases (replace the administrator name and server details):
+
+```sh
+createuser -h 127.0.0.1 -p 5432 -U YOUR_DB_ADMIN --pwprompt --no-superuser --no-createdb --no-createrole dealership
+createdb -h 127.0.0.1 -p 5432 -U YOUR_DB_ADMIN --owner=dealership dealership
+```
+
+These manual commands were not executed against an external server. If either object already
+exists, inspect/reuse it instead of dropping it. Configure `.env` to match and run `alembic upgrade
+head` as above. Do not run test-only downgrades on your development database.
+
+Alternatively, with Docker Desktop installed, a configured `.env`, and a free configured port:
 
 ```sh
 docker compose config --quiet
@@ -79,31 +165,62 @@ docker compose up -d db
 docker compose ps
 ```
 
-The database port binds to localhost. The `postgres_data` named volume persists data across
-container recreation and ordinary `docker compose down`. Do not remove the volume if you need
-the data. Initialization variables apply to a fresh database volume; changing `.env` does not
-change existing database passwords. Without Docker, create a local database and user and set
-`DATABASE_URL` to that instance.
+Docker was unavailable during verification. The Compose service binds to localhost and uses the
+`postgres_data` named volume. Never use `docker compose down -v` if data must be preserved.
+Changing `.env` does not change passwords inside an already initialized volume. Do not run both
+local PostgreSQL and Compose on the same port. Compose's POSTGRES_USER is its bootstrap role;
+Option A uses a separate, restricted application role.
 
-Backend, from this workspace's project root (the installed uv executable is shown):
+### Environment and application startup
+
+Both the API and Alembic read the root `.env`; shell environment variables take precedence.
+`JWT_ALGORITHM=HS256`, a default 30-minute expiry, issuer and audience are validated.
+`CORS_ORIGINS=["http://localhost:5173"]` allows the local frontend; add exact origins only as needed.
+Frontend `VITE_*` values are public and must never contain signing/database secrets.
+
+Start the API in one terminal, from the project root:
 
 ```sh
-.tools/uv/bin/uv sync --project backend --extra dev --locked
-source backend/.venv/bin/activate
-python -m alembic -c backend/alembic.ini upgrade head
-python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+backend/.venv/bin/python -m alembic -c backend/alembic.ini upgrade head
+backend/.venv/bin/python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-On another machine with uv installed, replace `.tools/uv/bin/uv` with `uv`; it can obtain Python 3.12.
-Both the API and Alembic load the root `.env`, with exported environment variables taking precedence.
-The migrations create `users` and `vehicles` with their validation constraints. Revision
-`0003_user_name` adds a nullable name to existing users; existing records and passwords are preserved.
-The isolated runner verifies the original user columns across upgrade/downgrade and checks schema drift.
-Alembic needs only `DATABASE_URL`; starting the API also requires `JWT_SECRET_KEY`.
+In another terminal, with Node on PATH:
 
-The readiness endpoint is `http://127.0.0.1:8000/api/health`; interactive API docs are at `/docs`.
-Readiness executes `SELECT 1` and returns 200 with `{"status":"ok","database":"ok"}`, or 503
-without connection details when PostgreSQL is unavailable. It does not check schema revisions.
+```sh
+cp -n frontend/.env.example frontend/.env
+npm --prefix frontend run dev
+```
+
+Open `http://localhost:5173`. API docs: `http://127.0.0.1:8000/docs`.
+`http://127.0.0.1:8000/api/health` returns 200 when PostgreSQL is reachable, or sanitized 503 when
+unavailable. Authentication/inventory requests also return a clear 503 on connection failures.
+The UI offers retry for API/network errors. Health checks connectivity, not schema revision;
+run migrations before starting. Current migration head is `0003_user_name`. Additive upgrades
+preserve users, and migration round trips are tested only in isolated test databases.
+
+## Provision the first admin
+
+1. Register the intended account through the UI. It initially has role `user`.
+2. In a trusted local terminal, verify that `.env`/exported `DATABASE_URL` points to the intended
+   database. Run the following with that account's real email:
+
+```sh
+backend/.venv/bin/python -m app.cli promote-admin --email 'YOUR_REGISTERED_EMAIL'
+```
+
+The command validates and normalizes the email exactly as login does. It locks the matching user,
+changes only the role and update timestamp, and commits the transaction. Rerunning reports
+`already an admin` without changing the account. Missing users fail with exit 1 and create nothing;
+missing/invalid email fails with exit 2. Database/configuration failures return a sanitized error.
+It never asks for or replaces the user's password. Refresh the browser to reload the role.
+
+**Authorization boundary:** this is a database-operator command, not an API endpoint. Anyone who
+can run it with the application's database credentials already has database write authority. Keep
+those credentials private; ordinary JWT holders cannot invoke the CLI through HTTP, and public
+registration continues to reject `role`/`is_admin`. There is no default admin password or public
+promotion route. No real account has been promoted in this workspace; only disposable test users
+were promoted while verifying the command.
 
 ## Authentication API
 
@@ -124,8 +241,8 @@ login credentials return a generic 401 with a Bearer challenge. Validation error
 Protected inventory routes depend on `CurrentUser` or `AdminUser` from
 `backend/app/api/dependencies.py`. These validate signature, expiry, issuer, audience and required
 claims, then load the user and role from PostgreSQL. Missing/invalid tokens return 401; insufficient
-role returns 403. Admin provisioning is deferred; there are no default admin credentials or public
-role-changing endpoints. Authorization tests use test-only routes, absent from the real application.
+role returns 403. The operator CLI above provisions admins; there are no default admin credentials
+or public role-changing endpoints. Authorization tests use test-only routes, absent from the real application.
 
 ## Vehicle API
 
@@ -204,7 +321,7 @@ On another machine, install Node 22.12+ and omit the PATH line. Open `http://loc
 The API from the backend instructions must be running on port 8000 with its database migrated.
 Register your own account; there are no demo credentials or automatically granted admin roles.
 Admin controls require an account provisioned by the database operator with role `admin`.
-A user-facing admin provisioning command is not implemented yet.
+Use `python -m app.cli promote-admin --email ...` through the backend environment as documented above.
 
 Frontend configuration belongs in ignored `frontend/.env`, copied from its example:
 
@@ -254,8 +371,8 @@ user row survives vehicle upgrade and downgrade. It also checks schema drift and
 migration round trip, runs pytest, and stops the server. It never connects to the development
 database or consumes `.env` credentials. Trust
 authentication is limited to this private temporary test cluster. The locally compiled PostgreSQL
-build is for testing and does not include TLS; use the Compose image or your managed server for
-normal development/deployment.
+build does not include TLS; it is used only for isolated tests and loopback development. Use a
+standard PostgreSQL distribution/managed server for remote deployment.
 
 Alternatively, explicitly export `TEST_DATABASE_URL` for a dedicated PostgreSQL database ending
 in `_test` and run `backend/.venv/bin/python -m pytest backend/tests -q`. Tests never fall back to
@@ -263,7 +380,8 @@ in `_test` and run `backend/.venv/bin/python -m pytest backend/tests -q`. Tests 
 it, rolls back individual tests and drops only that schema. The test database user must be allowed
 to create schemas. Do not supply a production database.
 
-Current result: **122 passed**, including the original 118 cases and four name/profile cases.
+Current result: **135 passed**, including all 122 previous cases plus admin CLI, safe setup guards
+and sanitized database-outage tests.
 Concurrent tests use real independent PostgreSQL transactions: eight buyers
 compete for one or three units; parallel restocks preserve every increment; edits during purchase
 do not restore stock; mixed purchases/restocks preserve totals. Migration checks and Ruff passed.
@@ -297,21 +415,36 @@ backend/.venv/bin/python scripts/test_frontend_integration.py --pg-bin .tools/po
 
 The browser runner starts a private temporary PostgreSQL database, applies all migrations, creates
 an admin with a random disposable password, and runs FastAPI on 8001 and Vite on 5175. Keep those
-ports free. It verifies health and CORS, runs **two passing live Chromium workflows**, then stops
+ports free. It verifies health and CORS, runs **three passing Chromium workflows**, then stops
 all services and removes the database. It never points at your persistent database. Browser tests
 use genuine API requests, while unit tests mock fetch. On another machine, provide the installed
 PostgreSQL binary directory with `--pg-bin`. Local service logs are ignored in `.tools/`.
 
 The browser journeys cover registration, login, CRUD, search, pagination, purchases to zero,
 refresh persistence, logout, invalid sessions, admin restock/delete confirmation and Escape dismissal.
-The mobile viewport check detects horizontal overflow. Firefox/Safari and production hosting have
-not been verified.
+The third journey simulates a refused API network request, checks the error message and retries
+successfully against the real API. The mobile viewport check detects horizontal overflow.
+Firefox/Safari and production hosting have not been verified.
+
+Verify fresh persistent setup and restarts independently:
+
+```sh
+backend/.venv/bin/python scripts/verify_local_setup.py --pg-bin .tools/postgres/bin
+```
+
+This creates a disposable SCRAM-authenticated cluster on 55441 and an API on 8002. It tests the
+same initializer, migrations, real CLI promotion/rerun, API shutdown/restart, database shutdown/503
+responses/restart, and exact preservation of user and vehicle records. It never targets your existing
+`.env` or persistent database and removes only its own temporary directory after stopping services.
+Keep these ports free. All persistence/outage checks passed on 2026-10-25.
 
 ## Screenshots
 
 These are actual Chromium captures from the live integration run using disposable sample inventory.
 The desktop and mobile captures occur at different points in the purchase workflow, so stock differs.
-Rerun the browser runner above to regenerate them. No real account credentials are shown.
+The browser runner now writes new captures to ignored `.tools/browser-screenshots/` to preserve
+these existing evidence files. Review new captures before explicitly copying them into
+`docs/screenshots/`. No real account credentials are shown.
 
 ![Inventory dashboard](docs/screenshots/inventory-desktop.png)
 
@@ -336,6 +469,8 @@ Rerun the browser runner above to regenerate them. No real account credentials a
   PostgreSQL concurrency tests, migration preservation checks and frontend API documentation.
   The frontend milestone adds the React workflows, API/session handling, component/browser tests,
   actual screenshots and setup documentation, plus optional names and `/auth/me` in the existing API.
+  The final setup milestone adds safe persistent local PostgreSQL initialization, operator-only
+  account promotion, outage responses, tests and restart-persistence verification.
 - **Engineering choices:** preserve the original virtual environment, use a separate Python 3.12
   environment, keep secrets out of Git, plan backend role enforcement and atomic stock changes.
   The user's later specification explicitly allows authenticated users to add/update vehicle
@@ -345,13 +480,18 @@ Rerun the browser runner above to regenerate them. No real account credentials a
   were corrected. The next run passed all 41 tests. Account logic was then extracted from route
   handlers into a service module and the full suite rerun. Vehicle development first recorded four
   expected failures, then 45 passes for create/list; five further behavior checks failed before
-  implementing the remaining endpoints. The backend now passes 122 cases. Frontend tests initially
+  implementing the remaining endpoints. The backend at that milestone passed 122 cases. Frontend tests initially
   had one ambiguous price matcher
   (24 passed, one failed); scoping it to the intended vehicle fixed the assertion, yielding 25 passes.
   ESLint/build and two live Chromium workflows passed. A dependency audit prompted a Vitest upgrade;
   the resolved dependency tree reports zero known vulnerabilities. All database verification used
   temporary data. Migration preservation and drift checks ran. Docker remains unverified, and these
   checks do not claim production load testing.
+- **Final verification (2026-10-25):** the initial admin test collection failed because the CLI
+  did not exist. After implementation, ten targeted tests passed. The complete suite now passes
+  135 backend and 25 frontend tests plus three Chromium journeys. Persistent setup, real promotion,
+  downtime recovery and complete-row preservation across restarts passed on disposable data.
+  An empty local development database was then initialized and migrated without creating users.
 - **Human review:** review authorization assumptions, install prerequisites, then inspect real test
   results and the UI at each milestone. No human review or acceptance is claimed yet.
 - **Ongoing record:** append actual future prompt/response excerpts or genuine public links;
