@@ -1,7 +1,7 @@
 # Implementation plan and requirements checklist
 
 Scope: a two-day local MVP. Scaffolding, authentication, inventory backend and React workflows are complete.
-The suites pass 135 backend tests, 25 frontend tests and three Chromium journeys;
+The suites pass 144 backend tests, 26 frontend tests and three Chromium journeys;
 see TEST_REPORT.md for actual results and limitations. Final local verification: 2026-10-25.
 
 ## Day 1: backend (approximately 8 hours)
@@ -59,7 +59,8 @@ see TEST_REPORT.md for actual results and limitations. Final local verification:
 - [x] Initial README, detailed My AI Usage section, real prompt excerpt in root PROMPTS.md.
 - [x] Actual screenshots and verified browser/test instructions; persistent setup documented separately.
 - [x] Final test report with real test counts, commands, results and known limitations.
-- [ ] Deployment/push only after explicit user authorization (outside this increment).
+- [x] Prepare Render/Vercel settings, hosted URL handling and locally verified production commands.
+- [ ] Publish/deploy and verify actual hosted origins/TLS only after explicit user authorization.
 
 ## Implemented design decisions
 

@@ -7,22 +7,33 @@ from urllib.parse import urlsplit
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 
 ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
 
 
 class DatabaseSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=ENV_FILE, extra="ignore")
+    model_config = SettingsConfigDict(env_file=ENV_FILE, extra="ignore", hide_input_in_errors=True)
 
     database_url: SecretStr
 
     @field_validator("database_url")
     @classmethod
     def require_postgresql(cls, value: SecretStr) -> SecretStr:
-        url = make_url(value.get_secret_value())
-        if url.drivername != "postgresql+psycopg" or not url.database:
-            raise ValueError("DATABASE_URL must use postgresql+psycopg and name a database")
-        return value
+        try:
+            url = make_url(value.get_secret_value())
+        except (ArgumentError, ValueError):
+            raise ValueError("DATABASE_URL must be a valid PostgreSQL URL") from None
+        if (
+            url.drivername not in {"postgres", "postgresql", "postgresql+psycopg"}
+            or not url.database
+        ):
+            raise ValueError("DATABASE_URL must use PostgreSQL and name a database")
+        # Hosted URLs usually omit the driver. Always select the installed psycopg 3 driver.
+        # URL objects preserve encoded credentials and query options such as sslmode.
+        return SecretStr(
+            url.set(drivername="postgresql+psycopg").render_as_string(hide_password=False)
+        )
 
 
 class Settings(DatabaseSettings):

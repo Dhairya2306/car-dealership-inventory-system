@@ -1,6 +1,102 @@
 # Verification report
 
-Date: 2026-10-25 (Asia/Kolkata). Current scope: local setup, admin provisioning and submission verification.
+Date: 2026-10-25 (Asia/Kolkata). Current scope: Render/Vercel deployment preparation; no hosted deployment performed.
+
+## Render/Vercel preparation — 2026-10-25
+
+**144 backend tests, 26 frontend tests and three Chromium regression workflows passed.** The
+production install, migration and start commands were also exercised locally in a disposable
+backend copy/database. Render/Vercel dashboards, hosted databases and Git remotes were not modified.
+
+### Exact verification commands and outcomes
+
+```sh
+backend/.venv/bin/python -m pytest backend/tests/test_config.py -q --tb=short
+backend/.venv/bin/python scripts/test_backend.py --pg-bin .tools/postgres/bin -q --tb=short
+backend/.venv/bin/python -m ruff check backend scripts
+backend/.venv/bin/python -m ruff format --check backend scripts
+export PATH="$PWD/.tools/node/bin:$PATH"
+npm --prefix frontend install --package-lock-only --ignore-scripts
+npm --prefix frontend ci
+npm --prefix frontend run test
+npm --prefix frontend run lint
+frontend/node_modules/.bin/prettier --check 'frontend/src/**/*.{ts,tsx,css}' 'frontend/*.{ts,js,json}' 'frontend/e2e/*.ts'
+VITE_API_BASE_URL=https://api.example/api npm --prefix frontend run build
+backend/.venv/bin/python scripts/verify_render.py --uv-bin .tools/uv/bin/uv --pg-bin .tools/postgres/bin
+export PLAYWRIGHT_BROWSERS_PATH="$PWD/.tools/browsers"
+backend/.venv/bin/python scripts/test_frontend_integration.py --pg-bin .tools/postgres/bin
+git diff --check
+```
+
+| Check | Actual result |
+| --- | --- |
+| Initial new configuration tests | Four failed, nine passed: hosted schemes rejected and malformed URL raised the wrong error type |
+| Targeted configuration tests after implementation | 14 passed in 0.02s |
+| Full isolated PostgreSQL/migration runner | 144 passed, one existing warning, 15.02s in the final review (previous run 10.72s); preservation/round-trip/drift checks passed |
+| Ruff lint / formatting | Passed; 40 files formatted |
+| Locked npm installation after Node constraint update | 269 packages installed, 270 audited; zero vulnerabilities |
+| Frontend suite, final run | 26 passed across three files, 3.19s in the final review (previous run 1.71s) |
+| ESLint / Prettier | Passed |
+| Production Vite build with absolute API URL | Passed; JS 292.64 kB, CSS 25.86 kB before gzip |
+| Existing Chromium workflows | Three passed in 4.4s in the final review (previous run 4.2s); health/CORS startup checks passed |
+| Production-command rehearsal | Fresh production-only uv install, migration/check, Uvicorn PORT binding, health and origin preflight passed |
+
+`api.example` and `inventory.example` are reserved test domains, not deployment links. Unit tests
+verify that the absolute API prefix produces `/api/vehicles` requests with bearer authentication.
+New backend tests cover three PostgreSQL URL schemes, encoded credential and TLS-query preservation,
+environment-over-dotenv precedence, rejection of unsupported URLs, redacted configuration errors,
+and allowed/blocked HTTPS CORS origins. All 135 prior backend cases were retained.
+
+### Production-command rehearsal details
+
+The new runner creates its own temporary backend root with copies of app/migrations/pyproject/lock
+files and uses the installed Python 3.12.15 and uv 0.13.5. It executes:
+
+```sh
+uv sync --locked --no-dev
+.venv/bin/python -m alembic -c alembic.ini upgrade head
+.venv/bin/python -m alembic -c alembic.ini check
+.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port "$PORT"
+```
+
+Production dependencies imported successfully, pytest was absent, and the uv lockfile was unchanged.
+The runner supplies a fresh local PostgreSQL database on 55442 using a standard `postgresql://`
+URL, environment-only credentials and `PORT=8003`. No root `.env` exists in that copied deployment.
+Health returned 200, and an HTTPS-origin bearer-header CORS preflight passed. The runner stops and
+removes only its own services/data. Existing backend/.venv and development data were preserved.
+This is a macOS rehearsal, not a claim that Render's Linux runtime or hosted TLS was exercised.
+
+The frontend engine range is restricted to `>=22.12.0 <23` to retain the tested Node major on Vercel.
+npm updated root metadata and added bundled optional-package metadata; a comparison confirmed every
+previously locked dependency entry remained unchanged. Existing screenshots were not overwritten.
+A Ruff implicit-string-concatenation finding in the new verification script was corrected before
+passing lint. Existing Starlette/httpx, ESLint support, whatwg-encoding and browser color-env warnings
+remain; no test failure was suppressed.
+
+### Final review before the deployment milestone commit
+
+At the user's explicit request, the full backend runner, clean npm install, frontend suite,
+ESLint, Prettier, Ruff lint/format, production build, deployment-command rehearsal and Chromium
+regressions were rerun. All passed; no new failing check required an application change. README
+and this report were updated with the actual rerun results. Render/Vercel settings were compared
+with the real pyproject/lock, frontend package scripts, API prefix, settings and Alembic paths.
+
+The untracked `.vscode/settings.json` contains only `python.terminal.useEnvFile: true`; it is an
+unrelated local preference and is excluded from the commit. Existing work and the unrelated LaTeX
+report were not changed. Both `.env.example` files are included. Real `.env`, credentials, database
+files, virtual environments, generated bundles and Vercel local metadata remain ignored. The staged
+file review found no known local secrets or private-key/token patterns. `git diff --check` and
+`git diff --cached --check` passed. Node engine/lock agreement and Vercel JSON settings were also
+verified; the backend uv lockfile is unchanged.
+
+### Limits and remaining manual work
+
+Set actual Render database/secrets/origin variables, choose plans/regions, set the service roots,
+apply migrations as a separate release step, and configure Vercel's real API URL as described in
+[DEPLOYMENT.md](DEPLOYMENT.md). Pre-deploy availability depends on the selected Render plan.
+Vercel config JSON is included and formatted, but actual CDN rewrites/deep links, platform builds,
+hosted TLS and deployed-origin browser behavior are not verified until the user deploys. No hosting
+account was connected, no resource provisioned, no real user promoted, and nothing pushed.
 
 ## Final local setup milestone — 2026-10-25
 

@@ -91,3 +91,21 @@ describe("API client", () => {
     );
   });
 });
+
+it("uses the configured absolute API URL including /api for a separate backend", async () => {
+  vi.stubEnv("VITE_API_BASE_URL", "https://api.example/api/");
+  vi.resetModules();
+  try {
+    const hosted = await import("./api");
+    const fetcher = vi.fn().mockResolvedValue(json({ id: "1" }));
+    vi.stubGlobal("fetch", fetcher);
+    await hosted.apiRequest("/vehicles", { token: "test-token" });
+    expect(fetcher.mock.calls[0][0]).toBe("https://api.example/api/vehicles");
+    expect(fetcher.mock.calls[0][1].headers.get("Authorization")).toBe(
+      "Bearer test-token",
+    );
+  } finally {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  }
+});

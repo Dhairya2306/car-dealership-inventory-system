@@ -1,7 +1,9 @@
 from unittest.mock import Mock
 
+from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
+from app.application import create_app
 from app.db import get_session
 
 
@@ -52,3 +54,23 @@ def test_login_database_failure_has_safe_retryable_error(client, app):
     assert response.status_code == 503
     assert response.json() == {"detail": "Database unavailable. Please try again."}
     assert "private" not in response.text
+
+
+def test_production_cors_allows_only_the_configured_https_origin(settings):
+    origin = "https://inventory.example"
+    settings.cors_origins = [origin]
+    with TestClient(create_app(settings)) as client:
+        for candidate, expected in [(origin, 200), ("https://untrusted.example", 400)]:
+            response = client.options(
+                "/api/vehicles",
+                headers={
+                    "Origin": candidate,
+                    "Access-Control-Request-Method": "POST",
+                    "Access-Control-Request-Headers": "authorization,content-type",
+                },
+            )
+            assert response.status_code == expected
+            assert response.headers.get("access-control-allow-origin") == (
+                origin if expected == 200 else None
+            )
+            assert "access-control-allow-credentials" not in response.headers

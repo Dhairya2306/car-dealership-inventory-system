@@ -366,3 +366,45 @@ Implement a safe, documented way to create the first admin account.
 - Add tests for authorized promotion, nonexistent users and prevention of privilege escalation.
 - Do not promote any real user automatically.
 ```
+
+
+## Deployment preparation — actual user request, 2026-10-25
+
+The following is the user's actual request, preserved without invented responses or public links:
+
+```text
+Prepare my existing Car Dealership Inventory System for production deployment using Render for FastAPI + PostgreSQL and Vercel for React + Vite.
+
+Inspect the entire repository, including pyproject files, uv lockfile, frontend package.json, environment variable names, database initialization, Alembic migrations, CORS, authentication, and Git status.
+
+Requirements:
+
+1. Make the backend deploy correctly on Render, binding to 0.0.0.0 and the platform-provided PORT.
+2. Ensure dependencies install reproducibly using the existing uv configuration.
+3. Document the correct production database migration procedure. Never reset or drop a production database during startup.
+4. Ensure the application reads the hosted PostgreSQL URL and production secrets from environment variables.
+5. Configure CORS for the deployed frontend origin through environment configuration.
+6. Prepare Vercel settings for the existing frontend directory and document the exact API URL variable required by the code.
+7. Add safe deployment instructions and update the README.
+8. Never commit .env files, credentials, or generated secrets.
+9. Add a deployment configuration file only if it fits the existing project structure.
+10. Run relevant tests, lint, formatting and frontend build checks.
+11. Do not push to GitHub, deploy anything, or modify production resources. Do not discard existing work.
+
+Report the exact Render build command, start command, required environment variable names, migration command, Vercel root/build/output settings, and any changes I must make manually in the hosting dashboards. Do not guess configuration values; inspect the code first.
+```
+
+
+## Deployment milestone review — actual user instruction excerpt, 2026-10-25
+
+Verbatim excerpt from the user's follow-up request (IDE context omitted):
+
+```text
+Continue from the current uncommitted deployment changes. Do not reset, discard, or overwrite existing work. Do not push or deploy.
+```
+
+```text
+6. Inspect the final diff. Commit the intended deployment changes with a meaningful message and `Co-authored-by: Codex <noreply@openai.com>`. Do not push.
+
+Report any failed or unverified checks honestly.
+```

@@ -20,3 +20,4 @@ coverage/
 *.log
 playwright-report/
 test-results/
+.vercel/

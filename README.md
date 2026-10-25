@@ -7,15 +7,18 @@ TypeScript, Vite and Tailwind CSS.
 **Current status: full-stack local MVP implemented and verified.** The React app includes
 registration/login, protected sessions, a responsive inventory dashboard, combined search, pagination,
 create/edit forms, one-unit purchases, and admin restock/delete dialogs. FastAPI enforces permissions
-and atomic stock changes. Final verification on 2026-10-25: **135 backend tests, 25 frontend tests
+and atomic stock changes. Latest local verification on 2026-10-25: **144 backend tests, 26 frontend tests
 and three Chromium workflows passed**. Persistent local setup, restart checks and operator-only admin
-provisioning are implemented. This workspace has an empty migrated development database; no real
-application user was created or promoted.
+provisioning are implemented. The setup milestone initialized an empty development database;
+this deployment-preparation task preserves it and does not create or promote application users.
 See [the plan and requirements checklist](docs/IMPLEMENTATION_PLAN.md) and
 [actual verification results](docs/TEST_REPORT.md).
 
 The [historical workspace and Git audit](docs/WORKSPACE_AUDIT.md) records an earlier milestone.
 Use this README and the latest test-report section for current setup and results.
+
+**Deployment preparation:** [Render + Vercel instructions](docs/DEPLOYMENT.md) contain exact build,
+start, migration and environment settings. No hosted deployment has been performed.
 
 ## Workspace layout
 
@@ -33,10 +36,12 @@ frontend/
   e2e/                  Playwright journeys against the live API
   package-lock.json     Reproducible npm dependencies
   .env.example          Public API path, development proxy and display currency
+  vercel.json           Vite build/output settings and SPA deep-link routing
 docs/                   Implementation checklist, test report and actual screenshots
 scripts/test_backend.py Temporary PostgreSQL cluster, migration checks and test runner
 scripts/test_frontend_integration.py Disposable PostgreSQL/API/Vite browser-test runner
 scripts/verify_local_setup.py Fresh setup, CLI and API/database restart/outage verification
+scripts/verify_render.py Disposable local rehearsal of production install/migration/start commands
 compose.yaml            Optional PostgreSQL service with persistent named storage
 .env.example            Configuration names and intentionally empty secrets
 PROMPTS.md              Actual user prompt excerpt from this conversation
@@ -55,9 +60,9 @@ source into `.tools/postgres/` for isolated tests. The original Python 3.9 root 
 Node 22.23.4/npm 10.9.9 were subsequently installed under `.tools/node`, and Playwright Chromium
 under `.tools/browsers`. Docker remains unavailable. Test runners shut down and remove their
 temporary clusters. On 2026-10-25 a separate persistent development cluster was initialized
-under ignored `.tools/dev-postgres` on port 55432. It remains running, with no application users
-or vehicles. Its generated `.env` and operator-password file are private and ignored. Do not delete
-`.tools` as cache: it now contains your persistent database as well as the earlier downloaded tools.
+under ignored `.tools/dev-postgres` on port 55432, initially without application users or vehicles.
+Use the status command below to check its current state. Its generated `.env` and operator-password
+file are private and ignored. Do not delete `.tools` as cache: it now contains your persistent database as well as the earlier downloaded tools.
 
 ## Fresh macOS setup
 
@@ -80,7 +85,7 @@ The official [uv](https://formulae.brew.sh/formula/uv),
 [PostgreSQL 17](https://formulae.brew.sh/formula/postgresql@17) formula pages were checked.
 Homebrew itself is not installed here, so those installation commands were not executed on this Mac.
 The locked uv/npm dependency installs and the remaining setup were verified with local binaries.
-uv supplies Python 3.12 when needed. Use Node 22.12+; the tested version is 22.23.4.
+uv supplies Python 3.12 when needed. Use Node 22.x, at least 22.12; the tested version is 22.23.4.
 
 In **this already-prepared workspace**, use the existing binaries instead:
 
@@ -141,8 +146,10 @@ backend/.venv/bin/python -c 'import secrets; print(secrets.token_hex(32))'
 ```
 
 Run the generator separately for each secret and enter them locally; never paste secrets into chat
-or commit them. Set `POSTGRES_PASSWORD`, `DATABASE_URL` and `JWT_SECRET_KEY`. The URL must use
-`postgresql+psycopg://USER:PASSWORD@HOST:PORT/DATABASE`. Percent-encode reserved password characters;
+or commit them. Set `POSTGRES_PASSWORD`, `DATABASE_URL` and `JWT_SECRET_KEY`. The URL can use
+`postgresql+psycopg://USER:PASSWORD@HOST:PORT/DATABASE`, `postgresql://` or `postgres://`;
+hosted URL schemes are normalized to the installed psycopg driver. Percent-encode reserved password
+characters;
 generated hex values need no encoding. JWT secrets need at least 32 characters.
 
 For a server you administer, PostgreSQL's `createuser` and `createdb` can create a dedicated role
@@ -317,7 +324,7 @@ npm --prefix frontend ci
 npm --prefix frontend run dev
 ```
 
-On another machine, install Node 22.12+ and omit the PATH line. Open `http://localhost:5173`.
+On another machine, install Node 22.x (at least 22.12) and omit the PATH line. Open `http://localhost:5173`.
 The API from the backend instructions must be running on port 8000 with its database migrated.
 Register your own account; there are no demo credentials or automatically granted admin roles.
 Admin controls require an account provisioned by the database operator with role `admin`.
@@ -380,8 +387,8 @@ in `_test` and run `backend/.venv/bin/python -m pytest backend/tests -q`. Tests 
 it, rolls back individual tests and drops only that schema. The test database user must be allowed
 to create schemas. Do not supply a production database.
 
-Current result: **135 passed**, including all 122 previous cases plus admin CLI, safe setup guards
-and sanitized database-outage tests.
+Current result: **144 passed**, retaining all 135 prior cases and adding hosted URL normalization,
+secret-safe configuration errors, environment precedence and production-origin CORS checks.
 Concurrent tests use real independent PostgreSQL transactions: eight buyers
 compete for one or three units; parallel restocks preserve every increment; edits during purchase
 do not restore stock; mixed purchases/restocks preserve totals. Migration checks and Ruff passed.
@@ -400,7 +407,8 @@ npm --prefix frontend run build
 npm --prefix frontend audit --audit-level=moderate
 ```
 
-Actual results: **25 tests passed**, ESLint and TypeScript/Vite build passed. npm reported zero
+Actual results: **26 tests passed**, ESLint and TypeScript/Vite build passed, including a build
+with an absolute API URL and a client test for its `/api` prefix. npm reported zero
 known vulnerabilities after upgrading the scaffold's Vitest dependency. The build writes ignored
 `frontend/dist/`. This does not start a production deployment.
 
@@ -438,6 +446,30 @@ responses/restart, and exact preservation of user and vehicle records. It never 
 `.env` or persistent database and removes only its own temporary directory after stopping services.
 Keep these ports free. All persistence/outage checks passed on 2026-10-25.
 
+## Render and Vercel deployment preparation
+
+Use [the deployment guide](docs/DEPLOYMENT.md) for the full procedure and manual dashboard steps.
+The deployment changes were reviewed and reverified locally before the milestone commit.
+Actual hosting, TLS and deployed-origin verification remain; no hosted resource was modified.
+
+| Platform setting | Value |
+| --- | --- |
+| Render runtime/root | Python 3 / `backend` |
+| Render build | `uv sync --locked --no-dev` |
+| Render start | `.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port "$PORT"` |
+| Separate migration step | `.venv/bin/python -m alembic -c alembic.ini upgrade head` |
+| Render health path | `/api/health` |
+| Vercel root/framework | `frontend` / Vite |
+| Vercel install/build/output | `npm ci` / `npm run build` / `dist` |
+
+On Render set `PYTHON_VERSION=3.12.15`, `UV_VERSION=0.13.5`, `UV_PROJECT_ENVIRONMENT=.venv`,
+`DATABASE_URL`, a private `JWT_SECRET_KEY`, and `CORS_ORIGINS` containing your exact Vercel HTTPS
+origin as a JSON array. Render supplies `PORT`. On Vercel set public `VITE_API_BASE_URL` to the
+actual Render HTTPS origin **including `/api`** and select Node 22.x. URLs and secrets must come
+from your own services; none are invented here. Migrate before releasing, using a pre-deploy command
+where the plan supports it or a separate trusted operator process. Startup never resets or migrates
+the database. Do not run local setup/test scripts against hosted data.
+
 ## Screenshots
 
 These are actual Chromium captures from the live integration run using disposable sample inventory.
@@ -471,6 +503,8 @@ these existing evidence files. Review new captures before explicitly copying the
   actual screenshots and setup documentation, plus optional names and `/auth/me` in the existing API.
   The final setup milestone adds safe persistent local PostgreSQL initialization, operator-only
   account promotion, outage responses, tests and restart-persistence verification.
+  Deployment preparation adds hosted PostgreSQL URL support, secret-safe configuration diagnostics,
+  Vercel SPA settings, deployment documentation and an isolated production-command rehearsal.
 - **Engineering choices:** preserve the original virtual environment, use a separate Python 3.12
   environment, keep secrets out of Git, plan backend role enforcement and atomic stock changes.
   The user's later specification explicitly allows authenticated users to add/update vehicle
